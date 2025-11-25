@@ -33,7 +33,10 @@ import {
   ShieldAlert,
   Search,
   Copy,
-  Check
+  Check,
+  ChevronRight,
+  PanelLeftClose,
+  Command
 } from 'lucide-react';
 import { Project, Task, TaskStatus, TaskPriority, ViewMode } from './types';
 import { generateTasksFromInput } from './services/geminiService';
@@ -157,9 +160,15 @@ const InlineEditableText = ({
       onChange={(e) => setValue(e.target.value)}
       onBlur={handleBlur}
       onKeyDown={handleKeyDown}
+      // CRITICAL: Stop propagation of ALL drag/pointer events to isolate the input from the parent draggable
+      onDragStart={(e) => { e.stopPropagation(); e.preventDefault(); }}
+      onMouseDown={(e) => e.stopPropagation()}
+      onPointerDown={(e) => e.stopPropagation()}
+      onClick={(e) => e.stopPropagation()}
+      draggable={false}
       rows={1}
       placeholder={placeholder}
-      className={`w-full bg-transparent border border-transparent rounded px-1 -ml-1 resize-none overflow-hidden focus:bg-slate-800 focus:border-slate-600 focus:outline-none focus:ring-1 focus:ring-primary transition-all whitespace-pre-wrap break-words ${isDone ? 'text-slate-500 line-through' : 'text-slate-200'} ${className}`}
+      className={`w-full bg-transparent border border-transparent rounded px-1 -ml-1 resize-none overflow-hidden focus:bg-slate-800 focus:border-slate-600 focus:outline-none focus:ring-1 focus:ring-primary transition-all whitespace-pre-wrap break-words cursor-text pointer-events-auto ${isDone ? 'text-slate-500 line-through' : 'text-slate-200'} ${className}`}
     />
   );
 };
@@ -180,7 +189,14 @@ const CollapsibleDescription = ({ text, onUpdate }: { text: string, onUpdate: (v
                     Mostra note ({text.split('\n')[0].substring(0, 30)}...)
                 </button>
             ) : (
-                <div className="bg-slate-900/50 rounded p-2 border border-slate-800/50 w-full animate-in fade-in zoom-in-95 duration-200">
+                <div 
+                    className="bg-slate-900/50 rounded p-2 border border-slate-800/50 w-full animate-in fade-in zoom-in-95 duration-200 cursor-auto"
+                    // IMPORTANT: Stop propagation of drag events on the container to prevent parent task dragging when selecting text in the padding area
+                    onDragStart={(e) => { e.stopPropagation(); e.preventDefault(); }}
+                    onMouseDown={(e) => e.stopPropagation()}
+                    onPointerDown={(e) => e.stopPropagation()}
+                    draggable
+                >
                     <button 
                         onClick={() => setIsOpen(false)}
                         className="flex items-center gap-1 text-[11px] text-primary hover:text-blue-300 font-medium mb-1 select-none"
@@ -240,13 +256,13 @@ const TaskItem: React.FC<TaskItemProps> = ({
     <div 
       draggable="true"
       onDragStart={(e) => onDragStart(e, task.id)}
-      className={`group relative bg-surface rounded-xl border border-slate-700/50 hover:border-primary/40 transition-all shadow-sm cursor-grab active:cursor-grabbing ${viewMode === 'LIST' ? 'flex flex-col md:flex-row md:items-start p-3 mb-2' : 'p-3 mb-3 flex flex-col'}`}
+      className={`group relative bg-surface rounded-xl border border-slate-700/50 hover:border-primary/40 transition-all shadow-sm cursor-grab active:cursor-grabbing ${viewMode === 'LIST' ? 'flex flex-col md:flex-row md:items-start p-3 mb-2' : 'p-2.5 mb-2 flex flex-col'}`}
     >
       <div className="absolute left-1 top-1/2 -translate-y-1/2 text-slate-700 opacity-0 group-hover:opacity-100 transition-opacity hidden md:block">
           <GripVertical size={14} />
       </div>
 
-      <div className={`flex-1 min-w-0 ${viewMode === 'LIST' ? 'md:ml-3 md:mr-4' : 'mb-3'}`}>
+      <div className={`flex-1 min-w-0 ${viewMode === 'LIST' ? 'md:ml-3 md:mr-4' : 'mb-1.5'}`}>
         <InlineEditableText 
           text={task.title} 
           isDone={task.status === TaskStatus.DONE} 
@@ -260,11 +276,11 @@ const TaskItem: React.FC<TaskItemProps> = ({
           />
         )}
         {viewMode === 'KANBAN' && task.description && (
-          <div className="mt-2 text-xs text-slate-500 line-clamp-3 whitespace-pre-wrap">{task.description}</div>
+          <div className="mt-1.5 text-xs text-slate-500 line-clamp-3 whitespace-pre-wrap leading-tight">{task.description}</div>
         )}
       </div>
 
-      <div className={`flex items-center justify-between ${viewMode === 'LIST' ? 'gap-3 mt-2 md:mt-0 md:self-start' : 'w-full pt-2 border-t border-slate-700/50'}`}>
+      <div className={`flex items-center justify-between ${viewMode === 'LIST' ? 'gap-3 mt-2 md:mt-0 md:self-start' : 'w-full pt-1.5 border-t border-slate-700/50'}`}>
         <div className="flex items-center gap-2">
           <StatusBadge status={task.status} onClick={() => onCycleStatus(task)} />
           <PriorityBadge priority={task.priority} onClick={() => onCyclePriority(task)} />
@@ -274,7 +290,7 @@ const TaskItem: React.FC<TaskItemProps> = ({
           <button 
               onClick={handleCopy}
               className="p-1.5 text-slate-500 hover:text-green-400 hover:bg-slate-700 rounded transition-colors"
-              title="Copia Titolo e Note"
+              title="Copia Titolo e Note (Inline)"
           >
               {isCopied ? <Check size={14} className="text-green-500" /> : <Copy size={14} />}
           </button>
@@ -611,6 +627,13 @@ export default function App() {
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   
+  // Collapsed Groups State
+  const [collapsedGroups, setCollapsedGroups] = useState<Record<TaskStatus, boolean>>({
+      [TaskStatus.TODO]: false,
+      [TaskStatus.TEST]: false,
+      [TaskStatus.DONE]: true // Default collapsed
+  });
+  
   // Database Error State
   const [dbError, setDbError] = useState<string | null>(null);
 
@@ -625,6 +648,9 @@ export default function App() {
   const [aiPrompt, setAiPrompt] = useState('');
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   
+  // Refs
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  
   // Drag State
   const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
   
@@ -632,6 +658,18 @@ export default function App() {
   const [editingProjectName, setEditingProjectName] = useState<string | null>(null);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const titleTextareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // --- Search Shortcut Effect ---
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+        if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+            e.preventDefault();
+            searchInputRef.current?.focus();
+        }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   // --- Auth Effect ---
   useEffect(() => {
@@ -828,7 +866,7 @@ export default function App() {
         title: title.trim(),
         description: desc.trim(),
         status: TaskStatus.TODO,
-        priority: TaskPriority.LOW,
+        priority: TaskPriority.MEDIUM, // DEFAULT MEDIUM
         createdAt: Date.now()
     };
 
@@ -883,7 +921,7 @@ export default function App() {
             title: t.title || "Untitled Task",
             description: t.description || "",
             status: TaskStatus.TODO,
-            priority: TaskPriority.LOW,
+            priority: TaskPriority.MEDIUM, // Default MEDIUM
             createdAt: Date.now()
           }));
           await Promise.all(promises);
@@ -896,7 +934,7 @@ export default function App() {
              title: t.title || "Untitled Task",
              description: t.description || "",
              status: TaskStatus.TODO,
-             priority: TaskPriority.LOW,
+             priority: TaskPriority.MEDIUM, // Default MEDIUM
              createdAt: Date.now()
           }));
           saveLocalTasks([...tasks, ...newTasks]);
@@ -992,6 +1030,10 @@ export default function App() {
     }
   };
 
+  const toggleGroup = (status: TaskStatus) => {
+      setCollapsedGroups(prev => ({...prev, [status]: !prev[status]}));
+  };
+
   // --- Rendering ---
 
   if (authLoading) {
@@ -1048,33 +1090,42 @@ export default function App() {
       <div className="max-w-5xl mx-auto space-y-8 pb-20">
         {groups.map(group => {
           const groupTasks = activeTasks.filter(t => t.status === group.status);
+          const isCollapsed = collapsedGroups[group.status];
+          
           return (
             <div 
                 key={group.status} 
                 onDragOver={onDragOver}
                 onDrop={(e) => onDrop(e, group.status)}
-                className="rounded-xl min-h-[100px]"
+                className="rounded-xl min-h-[50px]"
             >
-              <h3 className={`text-sm font-bold ${group.color} uppercase tracking-wider mb-3 px-1 flex items-center gap-2 border-b ${group.border} pb-2`}>
+              <h3 
+                onClick={() => toggleGroup(group.status)}
+                className={`text-sm font-bold ${group.color} uppercase tracking-wider mb-3 px-1 flex items-center gap-2 border-b ${group.border} pb-2 cursor-pointer hover:bg-slate-800/50 rounded-t transition-colors select-none`}
+              >
+                 {isCollapsed ? <ChevronRight size={18} /> : <ChevronDown size={18} />}
                  {group.label} <span className="bg-slate-800 text-slate-400 px-2 py-0.5 rounded-full text-[10px]">{groupTasks.length}</span>
               </h3>
-              <div className="space-y-2">
-                {groupTasks.map(task => (
-                  <TaskItem 
-                    key={task.id} 
-                    task={task} 
-                    viewMode="LIST"
-                    onCycleStatus={cycleStatus} 
-                    onCyclePriority={cyclePriority}
-                    onUpdateTitle={(t, val) => updateTask(t.id, { title: val })}
-                    onUpdateDescription={(t, val) => updateTask(t.id, { description: val })}
-                    onEdit={setEditingTask}
-                    onDelete={deleteTask} 
-                    onDragStart={onDragStart}
-                  />
-                ))}
-                {groupTasks.length === 0 && <div className="text-slate-600 text-xs italic p-4 text-center border border-dashed border-slate-800 rounded-lg">Nessun task in questa lista. Trascina qui per spostare.</div>}
-              </div>
+              
+              {!isCollapsed && (
+                  <div className="space-y-2 animate-in slide-in-from-top-2 duration-300">
+                    {groupTasks.map(task => (
+                      <TaskItem 
+                        key={task.id} 
+                        task={task} 
+                        viewMode="LIST"
+                        onCycleStatus={cycleStatus} 
+                        onCyclePriority={cyclePriority}
+                        onUpdateTitle={(t, val) => updateTask(t.id, { title: val })}
+                        onUpdateDescription={(t, val) => updateTask(t.id, { description: val })}
+                        onEdit={setEditingTask}
+                        onDelete={deleteTask} 
+                        onDragStart={onDragStart}
+                      />
+                    ))}
+                    {groupTasks.length === 0 && <div className="text-slate-600 text-xs italic p-4 text-center border border-dashed border-slate-800 rounded-lg">Nessun task in questa lista. Trascina qui per spostare.</div>}
+                  </div>
+              )}
             </div>
           );
         })}
@@ -1092,7 +1143,9 @@ export default function App() {
              <div className="w-6 h-6 bg-gradient-to-br from-primary to-purple-600 rounded-md"></div>
              FastTrack
            </div>
-           <button onClick={() => setIsSidebarOpen(false)} className="md:hidden text-slate-400"><X size={20}/></button>
+           <button onClick={() => setIsSidebarOpen(false)} className="text-slate-400 hover:text-white transition-colors">
+              <PanelLeftClose size={20}/>
+           </button>
         </div>
         
         <div className="flex-1 overflow-y-auto p-3">
@@ -1220,20 +1273,28 @@ export default function App() {
               <div className="relative flex-1 max-w-xs hidden sm:block">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
                   <input 
+                    ref={searchInputRef}
                     type="text"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     placeholder="Cerca task..."
-                    className="w-full bg-slate-900 border border-slate-700 rounded-lg pl-9 pr-3 py-1.5 text-sm text-slate-200 focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all placeholder:text-slate-600"
+                    className="w-full bg-slate-900 border border-slate-700 rounded-lg pl-9 pr-12 py-1.5 text-sm text-slate-200 focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all placeholder:text-slate-600"
                   />
-                  {searchQuery && (
-                      <button 
-                        onClick={() => setSearchQuery('')}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white"
-                      >
-                          <X size={14} />
-                      </button>
-                  )}
+                   {/* Shortcut Hint */}
+                  <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1 pointer-events-none">
+                     {!searchQuery ? (
+                         <span className="text-[10px] text-slate-600 border border-slate-700 rounded px-1.5 py-0.5 font-mono flex items-center gap-0.5">
+                            <Command size={8} /> K
+                         </span>
+                     ) : (
+                        <button 
+                            onClick={() => setSearchQuery('')}
+                            className="text-slate-500 hover:text-white pointer-events-auto"
+                        >
+                            <X size={14} />
+                        </button>
+                     )}
+                  </div>
               </div>
           )}
 
