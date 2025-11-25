@@ -29,7 +29,8 @@ import {
   Settings as SettingsIcon,
   WifiOff,
   ClipboardPaste,
-  ArrowDown
+  ArrowDown,
+  ShieldAlert
 } from 'lucide-react';
 import { Project, Task, TaskStatus, TaskPriority, ViewMode } from './types';
 import { generateTasksFromInput } from './services/geminiService';
@@ -582,6 +583,9 @@ export default function App() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
+  
+  // Database Error State
+  const [dbError, setDbError] = useState<string | null>(null);
 
   // UI State
   const [viewMode, setViewMode] = useState<ViewMode>('LIST');
@@ -626,9 +630,11 @@ export default function App() {
     }
     
     if (isFirebaseConfigured && db) {
+        setDbError(null);
         // FIRESTORE
         const q = query(collection(db, "projects"), where("userId", "==", user.uid));
-        const unsubscribe = onSnapshot(q, (snapshot) => {
+        const unsubscribe = onSnapshot(q, 
+          (snapshot) => {
             const projData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Project)).sort((a, b) => a.createdAt - b.createdAt);
             setProjects(projData);
             if (projData.length > 0 && !activeProjectId) {
@@ -636,7 +642,14 @@ export default function App() {
             } else if (projData.length === 0) {
                 setActiveProjectId(null);
             }
-        });
+          },
+          (error) => {
+            console.error("Firestore Projects Error:", error);
+            if (error.code === 'permission-denied') {
+              setDbError("Permesso negato. Controlla le regole di sicurezza nel database Firebase.");
+            }
+          }
+        );
         return () => unsubscribe();
     } else {
         // LOCAL STORAGE
@@ -662,10 +675,19 @@ export default function App() {
     if (isFirebaseConfigured && db) {
         // FIRESTORE
         const q = query(collection(db, "tasks"), where("userId", "==", user.uid));
-        const unsubscribe = onSnapshot(q, (snapshot) => {
+        const unsubscribe = onSnapshot(q, 
+          (snapshot) => {
             const taskData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Task));
             setTasks(taskData);
-        });
+          },
+          (error) => {
+             // Don't overwrite error if already set by projects
+             console.error("Firestore Tasks Error:", error);
+             if (error.code === 'permission-denied') {
+               setDbError((prev) => prev || "Permesso negato. Controlla le regole di sicurezza nel database Firebase.");
+             }
+          }
+        );
         return () => unsubscribe();
     } else {
         // LOCAL STORAGE
@@ -1103,6 +1125,14 @@ export default function App() {
       {/* Main Content */}
       <main className="flex-1 flex flex-col min-w-0 bg-background relative">
         
+        {/* Error Banner */}
+        {dbError && (
+          <div className="bg-red-500/10 border-b border-red-500/20 px-4 py-2 flex items-center gap-3 text-red-400 text-xs font-medium animate-in slide-in-from-top-2">
+            <ShieldAlert size={16} className="shrink-0" />
+            <div className="flex-1">{dbError}</div>
+          </div>
+        )}
+
         {/* Header */}
         <header className="h-16 border-b border-slate-800 flex items-center justify-between px-4 bg-background/80 backdrop-blur-md sticky top-0 z-10 shrink-0">
           <div className="flex items-center gap-3 flex-1 min-w-0">
