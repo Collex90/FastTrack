@@ -1,10 +1,18 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { Task } from "../types";
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-
 export const generateTasksFromInput = async (input: string, projectId: string): Promise<Partial<Task>[]> => {
   try {
+    // Check safe per l'environment
+    const apiKey = typeof process !== 'undefined' ? process.env.API_KEY : '';
+    
+    if (!apiKey) {
+      console.warn("API Key Gemini non trovata. La generazione AI non funzionerà.");
+      return [];
+    }
+
+    const ai = new GoogleGenAI({ apiKey });
+
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash",
       contents: `Sei un project manager esperto. Analizza la seguente richiesta o descrizione di funzionalità e crea una lista di task tecnici concisi e azionabili per sviluppare o risolvere quanto richiesto.
@@ -46,6 +54,7 @@ export const generateTasksFromInput = async (input: string, projectId: string): 
     return [];
   } catch (error) {
     console.error("Errore generazione task AI:", error);
-    throw error;
+    // Non rilanciamo l'errore per evitare crash della UI, ritorniamo array vuoto
+    return [];
   }
 };
