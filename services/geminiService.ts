@@ -1,9 +1,30 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { Task, TaskStatus } from "../types";
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// Helper sicuro per recuperare l'API Key in ambienti diversi (Vite vs Node/Preview)
+const getApiKey = (): string => {
+  // 1. Prova l'ambiente Vite (Vercel)
+  if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_KEY) {
+    return import.meta.env.VITE_API_KEY;
+  }
+  // 2. Fallback per ambiente Node.js o Preview interna (dove process è definito)
+  if (typeof process !== 'undefined' && process.env && process.env.API_KEY) {
+    return process.env.API_KEY;
+  }
+  return '';
+};
+
+const apiKey = getApiKey();
+
+// Inizializza solo se c'è una chiave (anche vuota, l'SDK gestirà l'errore alla chiamata)
+const ai = new GoogleGenAI({ apiKey });
 
 export const generateTasksFromInput = async (input: string, projectId: string): Promise<Partial<Task>[]> => {
+  if (!apiKey) {
+    console.error("API Key mancante. Configura VITE_API_KEY su Vercel.");
+    throw new Error("API Key mancante");
+  }
+
   try {
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash",

@@ -18,6 +18,7 @@ export interface Task {
   status: TaskStatus;
   priority: TaskPriority;
   createdAt: number;
+  deletedAt?: number; // Soft delete timestamp
 }
 
 export interface Project {
@@ -25,6 +26,7 @@ export interface Project {
   name: string;
   description?: string;
   createdAt: number;
+  deletedAt?: number; // Soft delete timestamp
 }
 
 export type ViewMode = 'LIST' | 'KANBAN';

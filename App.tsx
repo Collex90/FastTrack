@@ -17,7 +17,9 @@ import {
   Flag,
   AlertCircle,
   ArrowUpCircle,
-  GripVertical
+  GripVertical,
+  Archive,
+  RotateCcw
 } from 'lucide-react';
 import { Project, Task, TaskStatus, TaskPriority, ViewMode } from './types';
 import { generateTasksFromInput } from './services/geminiService';
@@ -102,13 +104,6 @@ const InlineEditableText = ({
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    // Only save on Enter if it's NOT a multiline intended field (judged by presence of newlines in current val or shift)
-    // Actually, for consistency in this app: Enter = Save only if Shift is not pressed, UNLESS it's the description
-    // Let's keep it simple: Enter without Shift saves ONLY for titles (single line preference), but here we make it generic.
-    // We will assume if className suggests 'text-sm' it is title, otherwise description.
-    
-    // Better logic: Always allow newlines with Shift+Enter. 
-    // If it's the main title (isDone passed), Enter saves.
     if (e.key === 'Enter' && !e.shiftKey && isDone !== undefined) {
        e.preventDefault();
        textareaRef.current?.blur();
@@ -143,9 +138,6 @@ const InlineEditableText = ({
 const CollapsibleDescription = ({ text, onUpdate }: { text: string, onUpdate: (val: string) => void }) => {
     const [isOpen, setIsOpen] = useState(false);
     
-    // If text is empty, we still render so user can add notes via edit, 
-    // but in "read mode" if empty we typically don't show the toggle unless we want to allow inline add.
-    // For now, only show if text exists.
     if (!text) return null;
 
     return (
@@ -187,7 +179,9 @@ interface TaskItemProps {
   onUpdateDescription: (task: Task, newDesc: string) => void;
   onEdit: (task: Task) => void;
   onDelete: (taskId: string) => void;
+  onRestore: (taskId: string) => void;
   onDragStart: (e: React.DragEvent, taskId: string) => void;
+  isDeletedView?: boolean;
 }
 
 const TaskItem: React.FC<TaskItemProps> = ({ 
@@ -199,57 +193,79 @@ const TaskItem: React.FC<TaskItemProps> = ({
   onUpdateDescription,
   onEdit, 
   onDelete, 
-  onDragStart 
+  onRestore,
+  onDragStart,
+  isDeletedView = false
 }) => (
   <div 
-    draggable="true"
-    onDragStart={(e) => onDragStart(e, task.id)}
-    className={`group relative bg-surface rounded-xl border border-slate-700/50 hover:border-primary/40 transition-all shadow-sm cursor-grab active:cursor-grabbing ${viewMode === 'LIST' ? 'flex flex-col md:flex-row md:items-start p-3 mb-2' : 'p-3 mb-3 flex flex-col'}`}
+    draggable={!isDeletedView}
+    onDragStart={(e) => !isDeletedView && onDragStart(e, task.id)}
+    className={`group relative bg-surface rounded-xl border ${isDeletedView ? 'border-red-900/30 bg-red-950/10' : 'border-slate-700/50 hover:border-primary/40'} transition-all shadow-sm ${!isDeletedView && 'cursor-grab active:cursor-grabbing'} ${viewMode === 'LIST' ? 'flex flex-col md:flex-row md:items-start p-3 mb-2' : 'p-3 mb-3 flex flex-col'}`}
   >
     {/* Drag Handle */}
-    <div className="absolute left-1 top-1/2 -translate-y-1/2 text-slate-700 opacity-0 group-hover:opacity-100 transition-opacity hidden md:block">
-        <GripVertical size={14} />
-    </div>
+    {!isDeletedView && (
+      <div className="absolute left-1 top-1/2 -translate-y-1/2 text-slate-700 opacity-0 group-hover:opacity-100 transition-opacity hidden md:block">
+          <GripVertical size={14} />
+      </div>
+    )}
 
     <div className={`flex-1 min-w-0 ${viewMode === 'LIST' ? 'md:ml-3 md:mr-4' : 'mb-3'}`}>
-      <InlineEditableText 
-        text={task.title} 
-        isDone={task.status === TaskStatus.DONE} 
-        onSave={(val) => onUpdateTitle(task, val)} 
-        className="text-sm"
-      />
-      {viewMode === 'LIST' && task.description && (
+      {isDeletedView ? (
+        <span className="text-sm text-slate-400 line-through">{task.title}</span>
+      ) : (
+        <InlineEditableText 
+            text={task.title} 
+            isDone={task.status === TaskStatus.DONE} 
+            onSave={(val) => onUpdateTitle(task, val)} 
+            className="text-sm"
+        />
+      )}
+      
+      {!isDeletedView && viewMode === 'LIST' && task.description && (
         <CollapsibleDescription 
             text={task.description} 
             onUpdate={(val) => onUpdateDescription(task, val)}
         />
       )}
-      {viewMode === 'KANBAN' && task.description && (
+      {!isDeletedView && viewMode === 'KANBAN' && task.description && (
          <div className="mt-2 text-xs text-slate-500 line-clamp-3 whitespace-pre-wrap">{task.description}</div>
       )}
     </div>
 
     <div className={`flex items-center justify-between ${viewMode === 'LIST' ? 'gap-3 mt-2 md:mt-0 md:self-start' : 'w-full pt-2 border-t border-slate-700/50'}`}>
       <div className="flex items-center gap-2">
-        <StatusBadge status={task.status} onClick={() => onCycleStatus(task)} />
-        <PriorityBadge priority={task.priority} onClick={() => onCyclePriority(task)} />
+        {!isDeletedView && <StatusBadge status={task.status} onClick={() => onCycleStatus(task)} />}
+        {!isDeletedView && <PriorityBadge priority={task.priority} onClick={() => onCyclePriority(task)} />}
+        {isDeletedView && <span className="text-xs text-red-500 font-medium uppercase">Eliminato</span>}
       </div>
       
       <div className={`flex items-center gap-1 transition-opacity`}>
-        <button 
-            onClick={() => onEdit(task)}
-            className="p-1.5 text-slate-500 hover:text-primary hover:bg-slate-700 rounded transition-colors"
-            title="Modifica dettaglio"
-        >
-            <Pencil size={14} />
-        </button>
-        <button 
-            onClick={(e) => { e.stopPropagation(); onDelete(task.id); }} 
-            className="p-1.5 text-slate-500 hover:text-red-400 hover:bg-slate-700 rounded transition-colors"
-            title="Elimina"
-        >
-            <Trash2 size={14} />
-        </button>
+        {isDeletedView ? (
+           <button 
+             onClick={(e) => { e.stopPropagation(); onRestore(task.id); }} 
+             className="p-1.5 text-slate-500 hover:text-green-400 hover:bg-slate-700 rounded transition-colors"
+             title="Ripristina"
+           >
+             <RotateCcw size={14} />
+           </button>
+        ) : (
+            <>
+                <button 
+                    onClick={() => onEdit(task)}
+                    className="p-1.5 text-slate-500 hover:text-primary hover:bg-slate-700 rounded transition-colors"
+                    title="Modifica dettaglio"
+                >
+                    <Pencil size={14} />
+                </button>
+                <button 
+                    onClick={(e) => { e.stopPropagation(); onDelete(task.id); }} 
+                    className="p-1.5 text-slate-500 hover:text-red-400 hover:bg-slate-700 rounded transition-colors"
+                    title="Elimina"
+                >
+                    <Trash2 size={14} />
+                </button>
+            </>
+        )}
       </div>
     </div>
   </div>
@@ -281,6 +297,7 @@ export default function App() {
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [aiModalOpen, setAiModalOpen] = useState(false);
   const [aiPrompt, setAiPrompt] = useState('');
+  const [showTrash, setShowTrash] = useState(false); // Toggle for Trash view
   
   // Drag State
   const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
@@ -299,12 +316,15 @@ export default function App() {
 
   // Init default project if none
   useEffect(() => {
-    if (projects.length === 0) {
+    // Only init if there are ABSOLUTELY no projects (not even deleted ones) to avoid loops, 
+    // but better to just check visible ones.
+    const visibleProjects = projects.filter(p => !p.deletedAt);
+    if (visibleProjects.length === 0 && projects.length === 0) {
       const defaultProject = { id: crypto.randomUUID(), name: 'Il Mio Primo Progetto', createdAt: Date.now() };
       setProjects([defaultProject]);
       setActiveProjectId(defaultProject.id);
-    } else if (!activeProjectId && projects.length > 0) {
-      setActiveProjectId(projects[0].id);
+    } else if (!activeProjectId && visibleProjects.length > 0) {
+      setActiveProjectId(visibleProjects[0].id);
     }
   }, [projects.length, activeProjectId]);
 
@@ -316,7 +336,13 @@ export default function App() {
     }
   }, [newTaskTitle]);
 
-  // Derived
+  // Derived State
+  const visibleProjects = useMemo(() => {
+      return showTrash 
+        ? projects.filter(p => p.deletedAt) 
+        : projects.filter(p => !p.deletedAt);
+  }, [projects, showTrash]);
+
   const activeTasks = useMemo(() => {
     const priorityWeight = {
         [TaskPriority.HIGH]: 3,
@@ -324,16 +350,21 @@ export default function App() {
         [TaskPriority.LOW]: 1
     };
 
-    return tasks
-        .filter(t => t.projectId === activeProjectId)
-        .sort((a, b) => {
-            // 1. Sort by Priority (Descending: High -> Low)
-            const pDiff = priorityWeight[b.priority] - priorityWeight[a.priority];
-            if (pDiff !== 0) return pDiff;
-            // 2. Sort by Title (Ascending: A -> Z)
-            return a.title.localeCompare(b.title);
-        });
-  }, [tasks, activeProjectId]);
+    let filtered = tasks.filter(t => t.projectId === activeProjectId);
+    
+    // Filter based on Trash mode
+    filtered = showTrash 
+        ? filtered.filter(t => t.deletedAt) 
+        : filtered.filter(t => !t.deletedAt);
+
+    return filtered.sort((a, b) => {
+        // 1. Sort by Priority (Descending: High -> Low)
+        const pDiff = priorityWeight[b.priority] - priorityWeight[a.priority];
+        if (pDiff !== 0) return pDiff;
+        // 2. Sort by Title (Ascending: A -> Z)
+        return a.title.localeCompare(b.title);
+    });
+  }, [tasks, activeProjectId, showTrash]);
 
   const activeProject = useMemo(() => projects.find(p => p.id === activeProjectId), [projects, activeProjectId]);
 
@@ -344,6 +375,7 @@ export default function App() {
     setProjects([...projects, newProj]);
     setActiveProjectId(newProj.id);
     setNewProjectInput('');
+    setShowTrash(false); // Switch to normal view
   };
 
   const renameProject = (newName: string) => {
@@ -373,7 +405,6 @@ export default function App() {
     setNewTaskDesc('');
     if (titleTextareaRef.current) {
         titleTextareaRef.current.style.height = 'auto';
-        // Force focus back to title
         titleTextareaRef.current.focus();
     }
   };
@@ -414,23 +445,31 @@ export default function App() {
     setEditingTask(null);
   };
 
+  // Soft Delete Logic - No Window.confirm to prevent blocking
   const deleteTask = (taskId: string) => {
-    if (window.confirm('Eliminare questo task?')) {
-        setTasks(prev => prev.filter(t => t.id !== taskId));
-    }
+    updateTask(taskId, { deletedAt: Date.now() });
+  };
+
+  const restoreTask = (taskId: string) => {
+    setTasks(prev => prev.map(t => t.id === taskId ? { ...t, deletedAt: undefined } : t));
   };
 
   const deleteProject = (projId: string, e: React.MouseEvent) => {
-    e.stopPropagation(); // Stop clicking row event
+    e.stopPropagation();
     e.preventDefault();
-    if (window.confirm('Sei sicuro? Questo eliminerà il progetto e TUTTI i suoi task.')) {
-        setProjects(prev => prev.filter(p => p.id !== projId));
-        setTasks(prev => prev.filter(t => t.projectId !== projId));
-        if (activeProjectId === projId) {
-            const remaining = projects.filter(p => p.id !== projId);
-            setActiveProjectId(remaining.length > 0 ? remaining[0].id : null);
-        }
+    // Soft delete project
+    setProjects(prev => prev.map(p => p.id === projId ? { ...p, deletedAt: Date.now() } : p));
+    
+    // If we deleted the active project, switch to another valid one
+    if (activeProjectId === projId) {
+        const remaining = projects.filter(p => p.id !== projId && !p.deletedAt);
+        setActiveProjectId(remaining.length > 0 ? remaining[0].id : null);
     }
+  };
+
+  const restoreProject = (projId: string, e: React.MouseEvent) => {
+     e.stopPropagation();
+     setProjects(prev => prev.map(p => p.id === projId ? { ...p, deletedAt: undefined } : p));
   };
 
   // Drag & Drop Handlers
@@ -483,8 +522,8 @@ export default function App() {
     return (
       <div 
         className="flex-1 min-w-[300px] flex flex-col h-full bg-slate-900/50 rounded-xl border border-slate-800/50 transition-colors"
-        onDragOver={onDragOver}
-        onDrop={(e) => onDrop(e, status)}
+        onDragOver={!showTrash ? onDragOver : undefined}
+        onDrop={(e) => !showTrash && onDrop(e, status)}
       >
         <div className={`p-4 border-b ${borderColorClass} flex items-center justify-between sticky top-0 bg-slate-900/90 backdrop-blur-sm rounded-t-xl z-10`}>
           <div className="flex items-center gap-2">
@@ -504,10 +543,12 @@ export default function App() {
               onUpdateDescription={(t, val) => updateTask(t.id, { description: val })}
               onEdit={setEditingTask}
               onDelete={deleteTask}
+              onRestore={restoreTask}
               onDragStart={onDragStart}
+              isDeletedView={showTrash}
             />
           ))}
-          {colTasks.length === 0 && (
+          {colTasks.length === 0 && !showTrash && (
             <div className="h-24 border-2 border-dashed border-slate-800 rounded-lg flex items-center justify-center text-slate-700 text-xs pointer-events-none">
               Trascina qui i task
             </div>
@@ -528,11 +569,13 @@ export default function App() {
       <div className="max-w-5xl mx-auto space-y-8 pb-20">
         {groups.map(group => {
           const groupTasks = activeTasks.filter(t => t.status === group.status);
+          if (showTrash && groupTasks.length === 0) return null; // Don't show empty groups in trash
+
           return (
             <div 
                 key={group.status} 
-                onDragOver={onDragOver}
-                onDrop={(e) => onDrop(e, group.status)}
+                onDragOver={!showTrash ? onDragOver : undefined}
+                onDrop={(e) => !showTrash && onDrop(e, group.status)}
                 className="rounded-xl min-h-[100px]"
             >
               <h3 className={`text-sm font-bold ${group.color} uppercase tracking-wider mb-3 px-1 flex items-center gap-2 border-b ${group.border} pb-2`}>
@@ -550,10 +593,12 @@ export default function App() {
                     onUpdateDescription={(t, val) => updateTask(t.id, { description: val })}
                     onEdit={setEditingTask}
                     onDelete={deleteTask} 
+                    onRestore={restoreTask}
                     onDragStart={onDragStart}
+                    isDeletedView={showTrash}
                   />
                 ))}
-                {groupTasks.length === 0 && (
+                {groupTasks.length === 0 && !showTrash && (
                      <div className="text-slate-600 text-xs italic p-4 text-center border border-dashed border-slate-800 rounded-lg">
                          Nessun task in questa lista. Trascina qui per spostare.
                      </div>
@@ -580,42 +625,71 @@ export default function App() {
         </div>
         
         <div className="flex-1 overflow-y-auto p-3">
-          <div className="text-xs font-semibold text-slate-500 mb-2 px-2">PROGETTI</div>
+          <div className="flex items-center justify-between mb-2 px-2">
+             <div className="text-xs font-semibold text-slate-500">PROGETTI {showTrash && "(CESTINO)"}</div>
+             <button 
+                onClick={() => setShowTrash(!showTrash)}
+                className={`p-1 rounded hover:bg-slate-800 transition-colors ${showTrash ? 'text-red-400 bg-red-950/30' : 'text-slate-500'}`}
+                title={showTrash ? "Torna ai progetti attivi" : "Vedi progetti eliminati"}
+             >
+                {showTrash ? <RotateCcw size={12}/> : <Archive size={12}/>}
+             </button>
+          </div>
+          
           <div className="space-y-1">
-            {projects.map(p => (
+            {visibleProjects.map(p => (
               <div 
                 key={p.id}
                 onClick={() => { setActiveProjectId(p.id); if(window.innerWidth < 768) setIsSidebarOpen(false); }}
                 className={`group flex items-center justify-between px-3 py-2 rounded-lg cursor-pointer text-sm transition-colors ${activeProjectId === p.id ? 'bg-primary/10 text-primary border border-primary/20' : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200 border border-transparent'}`}
               >
-                <span className="truncate flex-1">{p.name}</span>
-                {projects.length > 0 && (
-                  <button 
-                    onClick={(e) => deleteProject(p.id, e)} 
-                    className="opacity-0 group-hover:opacity-100 hover:bg-red-500/20 hover:text-red-400 p-1.5 rounded transition-all z-20"
-                    title="Elimina progetto"
-                  >
-                    <Trash2 size={13} />
-                  </button>
+                <span className={`truncate flex-1 ${showTrash ? 'line-through opacity-70' : ''}`}>{p.name}</span>
+                {showTrash ? (
+                    <button 
+                        onClick={(e) => restoreProject(p.id, e)}
+                        className="opacity-0 group-hover:opacity-100 hover:bg-green-500/20 hover:text-green-400 p-1.5 rounded transition-all z-20"
+                        title="Ripristina progetto"
+                    >
+                        <RotateCcw size={13} />
+                    </button>
+                ) : (
+                    <button 
+                        onClick={(e) => deleteProject(p.id, e)} 
+                        className="opacity-0 group-hover:opacity-100 hover:bg-red-500/20 hover:text-red-400 p-1.5 rounded transition-all z-20"
+                        title="Elimina progetto"
+                    >
+                        <Trash2 size={13} />
+                    </button>
                 )}
               </div>
             ))}
+            {visibleProjects.length === 0 && (
+                <div className="px-3 py-4 text-xs text-slate-600 text-center italic">
+                    {showTrash ? "Cestino vuoto" : "Nessun progetto"}
+                </div>
+            )}
           </div>
         </div>
 
         <div className="p-3 border-t border-slate-800 bg-slate-900/50 shrink-0">
-           <form onSubmit={(e) => { e.preventDefault(); addProject(); }} className="flex gap-2">
-             <input 
-               type="text" 
-               placeholder="Nuovo Progetto..." 
-               value={newProjectInput}
-               onChange={(e) => setNewProjectInput(e.target.value)}
-               className="w-full bg-slate-800 border border-slate-700 rounded-md px-2 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-primary"
-             />
-             <button type="submit" disabled={!newProjectInput.trim()} className="bg-slate-700 hover:bg-primary hover:text-white text-slate-300 p-1.5 rounded-md transition-colors disabled:opacity-50">
-               <Plus size={16} />
-             </button>
-           </form>
+           {!showTrash ? (
+               <form onSubmit={(e) => { e.preventDefault(); addProject(); }} className="flex gap-2">
+                 <input 
+                   type="text" 
+                   placeholder="Nuovo Progetto..." 
+                   value={newProjectInput}
+                   onChange={(e) => setNewProjectInput(e.target.value)}
+                   className="w-full bg-slate-800 border border-slate-700 rounded-md px-2 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-primary"
+                 />
+                 <button type="submit" disabled={!newProjectInput.trim()} className="bg-slate-700 hover:bg-primary hover:text-white text-slate-300 p-1.5 rounded-md transition-colors disabled:opacity-50">
+                   <Plus size={16} />
+                 </button>
+               </form>
+           ) : (
+                <div className="text-center text-xs text-red-400 py-2 font-medium bg-red-950/20 rounded border border-red-900/30">
+                    MODALITÀ CESTINO ATTIVA
+                </div>
+           )}
         </div>
       </aside>
 
@@ -632,7 +706,7 @@ export default function App() {
             )}
             
             {/* Project Rename Logic */}
-            {activeProject && editingProjectName !== null ? (
+            {activeProject && editingProjectName !== null && !showTrash ? (
                <form 
                   className="flex-1 max-w-md flex gap-2"
                   onSubmit={(e) => { e.preventDefault(); renameProject(editingProjectName); }}
@@ -648,10 +722,10 @@ export default function App() {
                </form>
             ) : (
               <div className="group flex items-center gap-3 overflow-hidden">
-                <h1 className="text-xl font-bold text-white truncate">
-                  {activeProject?.name || "Nessun Progetto Selezionato"}
+                <h1 className={`text-xl font-bold truncate ${showTrash ? 'text-red-400 line-through' : 'text-white'}`}>
+                  {activeProject?.name || (showTrash ? "Seleziona un progetto dal cestino" : "Nessun Progetto Selezionato")}
                 </h1>
-                {activeProject && (
+                {activeProject && !showTrash && (
                   <button 
                     onClick={() => setEditingProjectName(activeProject.name)}
                     className="opacity-0 group-hover:opacity-100 p-1 text-slate-500 hover:text-primary transition-all"
@@ -659,6 +733,9 @@ export default function App() {
                   >
                     <Pencil size={16} />
                   </button>
+                )}
+                {showTrash && activeProject && (
+                    <span className="text-xs bg-red-900/40 text-red-300 px-2 py-1 rounded">Progetto Eliminato</span>
                 )}
               </div>
             )}
@@ -683,7 +760,7 @@ export default function App() {
         </header>
 
         {/* Improved Input Area */}
-        {activeProject && (
+        {activeProject && !showTrash && (
           <div className="p-4 md:p-6 pb-2 shrink-0 z-20">
             <div className="max-w-5xl mx-auto relative bg-surface border border-slate-700 rounded-xl shadow-lg p-3">
               <form onSubmit={handleQuickAdd} className="flex flex-col gap-2">
