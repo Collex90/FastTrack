@@ -30,7 +30,10 @@ import {
   WifiOff,
   ClipboardPaste,
   ArrowDown,
-  ShieldAlert
+  ShieldAlert,
+  Search,
+  Copy,
+  Check
 } from 'lucide-react';
 import { Project, Task, TaskStatus, TaskPriority, ViewMode } from './types';
 import { generateTasksFromInput } from './services/geminiService';
@@ -218,59 +221,82 @@ const TaskItem: React.FC<TaskItemProps> = ({
   onEdit, 
   onDelete, 
   onDragStart 
-}) => (
-  <div 
-    draggable="true"
-    onDragStart={(e) => onDragStart(e, task.id)}
-    className={`group relative bg-surface rounded-xl border border-slate-700/50 hover:border-primary/40 transition-all shadow-sm cursor-grab active:cursor-grabbing ${viewMode === 'LIST' ? 'flex flex-col md:flex-row md:items-start p-3 mb-2' : 'p-3 mb-3 flex flex-col'}`}
-  >
-    <div className="absolute left-1 top-1/2 -translate-y-1/2 text-slate-700 opacity-0 group-hover:opacity-100 transition-opacity hidden md:block">
-        <GripVertical size={14} />
-    </div>
+}) => {
+  const [isCopied, setIsCopied] = useState(false);
 
-    <div className={`flex-1 min-w-0 ${viewMode === 'LIST' ? 'md:ml-3 md:mr-4' : 'mb-3'}`}>
-      <InlineEditableText 
-        text={task.title} 
-        isDone={task.status === TaskStatus.DONE} 
-        onSave={(val) => onUpdateTitle(task, val)} 
-        className="text-sm"
-      />
-      {viewMode === 'LIST' && task.description && (
-        <CollapsibleDescription 
-            text={task.description} 
-            onUpdate={(val) => onUpdateDescription(task, val)}
+  const handleCopy = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    // Unisce titolo e descrizione in una singola linea separata da spazio.
+    // Sostituisce eventuali a capo nelle note con spazi per garantire l'inline.
+    const desc = (task.description || '').replace(/[\r\n]+/g, ' ').trim();
+    const content = `${task.title} ${desc}`.trim();
+    
+    navigator.clipboard.writeText(content);
+    setIsCopied(true);
+    setTimeout(() => setIsCopied(false), 2000);
+  };
+
+  return (
+    <div 
+      draggable="true"
+      onDragStart={(e) => onDragStart(e, task.id)}
+      className={`group relative bg-surface rounded-xl border border-slate-700/50 hover:border-primary/40 transition-all shadow-sm cursor-grab active:cursor-grabbing ${viewMode === 'LIST' ? 'flex flex-col md:flex-row md:items-start p-3 mb-2' : 'p-3 mb-3 flex flex-col'}`}
+    >
+      <div className="absolute left-1 top-1/2 -translate-y-1/2 text-slate-700 opacity-0 group-hover:opacity-100 transition-opacity hidden md:block">
+          <GripVertical size={14} />
+      </div>
+
+      <div className={`flex-1 min-w-0 ${viewMode === 'LIST' ? 'md:ml-3 md:mr-4' : 'mb-3'}`}>
+        <InlineEditableText 
+          text={task.title} 
+          isDone={task.status === TaskStatus.DONE} 
+          onSave={(val) => onUpdateTitle(task, val)} 
+          className="text-sm"
         />
-      )}
-      {viewMode === 'KANBAN' && task.description && (
-         <div className="mt-2 text-xs text-slate-500 line-clamp-3 whitespace-pre-wrap">{task.description}</div>
-      )}
-    </div>
+        {viewMode === 'LIST' && task.description && (
+          <CollapsibleDescription 
+              text={task.description} 
+              onUpdate={(val) => onUpdateDescription(task, val)}
+          />
+        )}
+        {viewMode === 'KANBAN' && task.description && (
+          <div className="mt-2 text-xs text-slate-500 line-clamp-3 whitespace-pre-wrap">{task.description}</div>
+        )}
+      </div>
 
-    <div className={`flex items-center justify-between ${viewMode === 'LIST' ? 'gap-3 mt-2 md:mt-0 md:self-start' : 'w-full pt-2 border-t border-slate-700/50'}`}>
-      <div className="flex items-center gap-2">
-        <StatusBadge status={task.status} onClick={() => onCycleStatus(task)} />
-        <PriorityBadge priority={task.priority} onClick={() => onCyclePriority(task)} />
-      </div>
-      
-      <div className={`flex items-center gap-1 transition-opacity`}>
-        <button 
-            onClick={() => onEdit(task)}
-            className="p-1.5 text-slate-500 hover:text-primary hover:bg-slate-700 rounded transition-colors"
-            title="Modifica dettaglio"
-        >
-            <Pencil size={14} />
-        </button>
-        <button 
-            onClick={(e) => { e.stopPropagation(); onDelete(task.id); }} 
-            className="p-1.5 text-slate-500 hover:text-red-400 hover:bg-slate-700 rounded transition-colors"
-            title="Elimina"
-        >
-            <Trash2 size={14} />
-        </button>
+      <div className={`flex items-center justify-between ${viewMode === 'LIST' ? 'gap-3 mt-2 md:mt-0 md:self-start' : 'w-full pt-2 border-t border-slate-700/50'}`}>
+        <div className="flex items-center gap-2">
+          <StatusBadge status={task.status} onClick={() => onCycleStatus(task)} />
+          <PriorityBadge priority={task.priority} onClick={() => onCyclePriority(task)} />
+        </div>
+        
+        <div className={`flex items-center gap-1 transition-opacity`}>
+          <button 
+              onClick={handleCopy}
+              className="p-1.5 text-slate-500 hover:text-green-400 hover:bg-slate-700 rounded transition-colors"
+              title="Copia Titolo e Note"
+          >
+              {isCopied ? <Check size={14} className="text-green-500" /> : <Copy size={14} />}
+          </button>
+          <button 
+              onClick={() => onEdit(task)}
+              className="p-1.5 text-slate-500 hover:text-primary hover:bg-slate-700 rounded transition-colors"
+              title="Modifica dettaglio"
+          >
+              <Pencil size={14} />
+          </button>
+          <button 
+              onClick={(e) => { e.stopPropagation(); onDelete(task.id); }} 
+              className="p-1.5 text-slate-500 hover:text-red-400 hover:bg-slate-700 rounded transition-colors"
+              title="Elimina"
+          >
+              <Trash2 size={14} />
+          </button>
+        </div>
       </div>
     </div>
-  </div>
-);
+  );
+};
 
 // --- Config Modal ---
 
@@ -583,6 +609,7 @@ export default function App() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
   
   // Database Error State
   const [dbError, setDbError] = useState<string | null>(null);
@@ -619,6 +646,11 @@ export default function App() {
         setAuthLoading(false);
     }
   }, []);
+
+  // --- Search clear effect ---
+  useEffect(() => {
+    setSearchQuery('');
+  }, [activeProjectId]);
 
   // --- Data Sync (Hybrid: Local vs Firestore) ---
   
@@ -890,14 +922,24 @@ export default function App() {
 
   const activeTasks = useMemo(() => {
     const priorityWeight = { [TaskPriority.HIGH]: 3, [TaskPriority.MEDIUM]: 2, [TaskPriority.LOW]: 1 };
+    const query = searchQuery.trim().toLowerCase();
+
     return tasks
-        .filter(t => t.projectId === activeProjectId && !t.deletedAt)
+        .filter(t => {
+            const matchesProject = t.projectId === activeProjectId && !t.deletedAt;
+            if (!matchesProject) return false;
+            if (!query) return true;
+            return (
+                t.title.toLowerCase().includes(query) || 
+                (t.description && t.description.toLowerCase().includes(query))
+            );
+        })
         .sort((a, b) => {
             const pDiff = priorityWeight[b.priority] - priorityWeight[a.priority];
             if (pDiff !== 0) return pDiff;
             return a.title.localeCompare(b.title);
         });
-  }, [tasks, activeProjectId]);
+  }, [tasks, activeProjectId, searchQuery]);
 
   const activeProject = useMemo(() => projects.find(p => p.id === activeProjectId), [projects, activeProjectId]);
 
@@ -1134,7 +1176,7 @@ export default function App() {
         )}
 
         {/* Header */}
-        <header className="h-16 border-b border-slate-800 flex items-center justify-between px-4 bg-background/80 backdrop-blur-md sticky top-0 z-10 shrink-0">
+        <header className="h-16 border-b border-slate-800 flex items-center justify-between px-4 bg-background/80 backdrop-blur-md sticky top-0 z-10 shrink-0 gap-4">
           <div className="flex items-center gap-3 flex-1 min-w-0">
             {!isSidebarOpen && (
               <button onClick={() => setIsSidebarOpen(true)} className="p-2 text-slate-400 hover:bg-slate-800 rounded-lg">
@@ -1157,14 +1199,14 @@ export default function App() {
                  />
                </form>
             ) : (
-              <div className="group flex items-center gap-3 overflow-hidden">
+              <div className="group flex items-center gap-3 overflow-hidden min-w-0">
                 <h1 className="text-xl font-bold text-white truncate">
                   {activeProject?.name || (projects.length > 0 ? "Seleziona un progetto" : "Crea un progetto")}
                 </h1>
                 {activeProject && (
                   <button 
                     onClick={() => setEditingProjectName(activeProject.name)}
-                    className="opacity-0 group-hover:opacity-100 p-1 text-slate-500 hover:text-primary transition-all"
+                    className="opacity-0 group-hover:opacity-100 p-1 text-slate-500 hover:text-primary transition-all shrink-0"
                     title="Rinomina Progetto"
                   >
                     <Pencil size={16} />
@@ -1173,6 +1215,27 @@ export default function App() {
               </div>
             )}
           </div>
+
+          {activeProject && (
+              <div className="relative flex-1 max-w-xs hidden sm:block">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
+                  <input 
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Cerca task..."
+                    className="w-full bg-slate-900 border border-slate-700 rounded-lg pl-9 pr-3 py-1.5 text-sm text-slate-200 focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all placeholder:text-slate-600"
+                  />
+                  {searchQuery && (
+                      <button 
+                        onClick={() => setSearchQuery('')}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white"
+                      >
+                          <X size={14} />
+                      </button>
+                  )}
+              </div>
+          )}
 
           <div className="flex items-center gap-2 bg-slate-900 p-1 rounded-lg border border-slate-800 shrink-0 ml-2">
             <button 
@@ -1191,6 +1254,22 @@ export default function App() {
             </button>
           </div>
         </header>
+
+        {/* Mobile Search Bar (visible only on small screens) */}
+        {activeProject && (
+             <div className="sm:hidden px-4 pt-4 pb-0">
+                <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
+                    <input 
+                        type="text"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        placeholder="Cerca task..."
+                        className="w-full bg-slate-900 border border-slate-700 rounded-lg pl-9 pr-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20"
+                    />
+                </div>
+             </div>
+        )}
 
         {/* Improved Input Area */}
         {activeProject && (
