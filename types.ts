@@ -12,21 +12,22 @@ export enum TaskPriority {
 
 export interface Task {
   id: string;
+  userId: string; // ID utente proprietario
   projectId: string;
   title: string;
   description?: string;
   status: TaskStatus;
   priority: TaskPriority;
   createdAt: number;
-  deletedAt?: number; // Soft delete timestamp
+  deletedAt?: number; // Timestamp per soft delete
 }
 
 export interface Project {
   id: string;
+  userId: string; // ID utente proprietario
   name: string;
   description?: string;
   createdAt: number;
-  deletedAt?: number; // Soft delete timestamp
 }
 
 export type ViewMode = 'LIST' | 'KANBAN';
