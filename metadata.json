@@ -1,0 +1,5 @@
+{
+  "name": "FastTrack - Project & Task Manager",
+  "description": "Un'applicazione veloce e intuitiva per gestire progetti e task con visualizzazioni Lista e Kanban. Include funzionalità AI per generare task automaticamente.",
+  "requestFramePermissions": []
+}
