@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   Plus, 
@@ -36,7 +35,11 @@ import {
   Check,
   ChevronRight,
   PanelLeftClose,
-  Command
+  Command,
+  Square,
+  CheckSquare,
+  ListTodo,
+  Layers
 } from 'lucide-react';
 import { Project, Task, TaskStatus, TaskPriority, ViewMode } from './types';
 import { generateTasksFromInput } from './services/geminiService';
@@ -56,7 +59,8 @@ import {
   addDoc, 
   updateDoc, 
   deleteDoc, 
-  doc
+  doc,
+  writeBatch
 } from 'firebase/firestore';
 
 // --- Components ---
@@ -218,6 +222,8 @@ const CollapsibleDescription = ({ text, onUpdate }: { text: string, onUpdate: (v
 interface TaskItemProps {
   task: Task;
   viewMode: ViewMode;
+  isSelected: boolean;
+  onToggleSelection: () => void;
   onCycleStatus: (task: Task) => void;
   onCyclePriority: (task: Task) => void;
   onUpdateTitle: (task: Task, newTitle: string) => void;
@@ -230,6 +236,8 @@ interface TaskItemProps {
 const TaskItem: React.FC<TaskItemProps> = ({ 
   task, 
   viewMode, 
+  isSelected,
+  onToggleSelection,
   onCycleStatus, 
   onCyclePriority, 
   onUpdateTitle, 
@@ -256,28 +264,40 @@ const TaskItem: React.FC<TaskItemProps> = ({
     <div 
       draggable="true"
       onDragStart={(e) => onDragStart(e, task.id)}
-      className={`group relative bg-surface rounded-xl border border-slate-700/50 hover:border-primary/40 transition-all shadow-sm cursor-grab active:cursor-grabbing ${viewMode === 'LIST' ? 'flex flex-col md:flex-row md:items-start p-3 mb-2' : 'p-2.5 mb-2 flex flex-col'}`}
+      className={`group relative bg-surface rounded-xl border transition-all shadow-sm cursor-grab active:cursor-grabbing ${viewMode === 'LIST' ? 'flex flex-col md:flex-row md:items-start p-3 mb-2' : 'p-2.5 mb-2 flex flex-col'} ${isSelected ? 'border-primary/60 bg-primary/5' : 'border-slate-700/50 hover:border-primary/40'}`}
     >
       <div className="absolute left-1 top-1/2 -translate-y-1/2 text-slate-700 opacity-0 group-hover:opacity-100 transition-opacity hidden md:block">
           <GripVertical size={14} />
       </div>
 
-      <div className={`flex-1 min-w-0 ${viewMode === 'LIST' ? 'md:ml-3 md:mr-4' : 'mb-1.5'}`}>
-        <InlineEditableText 
-          text={task.title} 
-          isDone={task.status === TaskStatus.DONE} 
-          onSave={(val) => onUpdateTitle(task, val)} 
-          className="text-sm"
-        />
-        {viewMode === 'LIST' && task.description && (
-          <CollapsibleDescription 
-              text={task.description} 
-              onUpdate={(val) => onUpdateDescription(task, val)}
-          />
-        )}
-        {viewMode === 'KANBAN' && task.description && (
-          <div className="mt-1.5 text-xs text-slate-500 line-clamp-3 whitespace-pre-wrap leading-tight">{task.description}</div>
-        )}
+      <div className={`flex items-start flex-1 min-w-0 ${viewMode === 'LIST' ? 'md:ml-3 md:mr-4' : 'mb-1.5'}`}>
+         {/* Checkbox Selection */}
+         <div 
+            onClick={(e) => { e.stopPropagation(); onToggleSelection(); }}
+            onPointerDown={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
+            className={`mr-2 mt-1 cursor-pointer transition-colors ${isSelected ? 'text-primary' : 'text-slate-600 hover:text-slate-400'}`}
+         >
+             {isSelected ? <CheckSquare size={18} /> : <Square size={18} />}
+         </div>
+
+         <div className="flex-1 min-w-0">
+            <InlineEditableText 
+            text={task.title} 
+            isDone={task.status === TaskStatus.DONE} 
+            onSave={(val) => onUpdateTitle(task, val)} 
+            className="text-sm"
+            />
+            {viewMode === 'LIST' && task.description && (
+            <CollapsibleDescription 
+                text={task.description} 
+                onUpdate={(val) => onUpdateDescription(task, val)}
+            />
+            )}
+            {viewMode === 'KANBAN' && task.description && (
+            <div className="mt-1.5 text-xs text-slate-500 line-clamp-3 whitespace-pre-wrap leading-tight">{task.description}</div>
+            )}
+         </div>
       </div>
 
       <div className={`flex items-center justify-between ${viewMode === 'LIST' ? 'gap-3 mt-2 md:mt-0 md:self-start' : 'w-full pt-1.5 border-t border-slate-700/50'}`}>
@@ -627,6 +647,9 @@ export default function App() {
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   
+  // Selection State
+  const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(new Set());
+  
   // Collapsed Groups State
   const [collapsedGroups, setCollapsedGroups] = useState<Record<TaskStatus, boolean>>({
       [TaskStatus.TODO]: false,
@@ -685,10 +708,12 @@ export default function App() {
     }
   }, []);
 
-  // --- Search clear effect ---
+  // --- Selection Clear Effect ---
   useEffect(() => {
+    // Pulisci selezione quando cambi progetto o modalità
+    setSelectedTaskIds(new Set());
     setSearchQuery('');
-  }, [activeProjectId]);
+  }, [activeProjectId, viewMode]);
 
   // --- Data Sync (Hybrid: Local vs Firestore) ---
   
@@ -895,7 +920,67 @@ export default function App() {
   const deleteTask = async (taskId: string) => {
      // Soft delete
      await updateTask(taskId, { deletedAt: Date.now() });
+     // Remove from selection if present
+     if (selectedTaskIds.has(taskId)) {
+         toggleTaskSelection(taskId);
+     }
   };
+
+  // --- Bulk Actions ---
+
+  const toggleTaskSelection = (taskId: string) => {
+      const newSet = new Set(selectedTaskIds);
+      if (newSet.has(taskId)) {
+          newSet.delete(taskId);
+      } else {
+          newSet.add(taskId);
+      }
+      setSelectedTaskIds(newSet);
+  };
+
+  const handleBulkCopy = () => {
+      const selectedTasks = tasks.filter(t => selectedTaskIds.has(t.id));
+      if (selectedTasks.length === 0) return;
+
+      const text = selectedTasks.map(t => t.title).join('\n');
+      navigator.clipboard.writeText(text);
+      alert(`${selectedTasks.length} task copiati negli appunti.`);
+      setSelectedTaskIds(new Set());
+  };
+
+  const handleBulkDelete = async () => {
+      if (!window.confirm(`Sei sicuro di voler eliminare ${selectedTaskIds.size} task?`)) return;
+      
+      const ids = Array.from(selectedTaskIds);
+      
+      if (isFirebaseConfigured && db) {
+          // Batch non sempre supporta troppe operazioni, meglio loop per soft delete
+          ids.forEach(id => deleteTask(id));
+      } else {
+          // Local
+          const updated = tasks.map(t => selectedTaskIds.has(t.id) ? { ...t, deletedAt: Date.now() } : t);
+          saveLocalTasks(updated);
+      }
+      setSelectedTaskIds(new Set());
+  };
+
+  const handleBulkStatusChange = async (newStatus: TaskStatus) => {
+      const ids = Array.from(selectedTaskIds);
+      
+      if (isFirebaseConfigured && db) {
+          const batch = writeBatch(db);
+          ids.forEach(id => {
+              const ref = doc(db!, "tasks", id);
+              batch.update(ref, { status: newStatus });
+          });
+          await batch.commit();
+      } else {
+          const updated = tasks.map(t => selectedTaskIds.has(t.id) ? { ...t, status: newStatus } : t);
+          saveLocalTasks(updated);
+      }
+      setSelectedTaskIds(new Set());
+  };
+
 
   const handleQuickAdd = (e: React.FormEvent) => {
     e.preventDefault();
@@ -928,7 +1013,7 @@ export default function App() {
       } else {
           // Local Generation
           const newTasks: Task[] = generated.map(t => ({
-             id: crypto.randomUUID(),
+             id: crypto.randomUUID() as string,
              userId: user.uid,
              projectId: activeProjectId,
              title: t.title || "Untitled Task",
@@ -942,7 +1027,8 @@ export default function App() {
       
       setAiPrompt('');
       setAiModalOpen(false);
-    } catch (error) {
+    } catch (error: any) {
+      console.error(error);
       alert("Errore durante la generazione dei task.");
     } finally {
       setIsAiLoading(false);
@@ -1064,6 +1150,8 @@ export default function App() {
               key={task.id}
               task={task}
               viewMode="KANBAN"
+              isSelected={selectedTaskIds.has(task.id)}
+              onToggleSelection={() => toggleTaskSelection(task.id)}
               onCycleStatus={cycleStatus}
               onCyclePriority={cyclePriority}
               onUpdateTitle={(t, val) => updateTask(t.id, { title: val })}
@@ -1114,6 +1202,8 @@ export default function App() {
                         key={task.id} 
                         task={task} 
                         viewMode="LIST"
+                        isSelected={selectedTaskIds.has(task.id)}
+                        onToggleSelection={() => toggleTaskSelection(task.id)}
                         onCycleStatus={cycleStatus} 
                         onCyclePriority={cyclePriority}
                         onUpdateTitle={(t, val) => updateTask(t.id, { title: val })}
@@ -1383,7 +1473,7 @@ export default function App() {
         )}
 
         {/* Content View */}
-        <div className="flex-1 overflow-x-hidden overflow-y-auto p-4 md:p-6 custom-scrollbar">
+        <div className="flex-1 overflow-x-hidden overflow-y-auto p-4 md:p-6 custom-scrollbar pb-24">
            {viewMode === 'LIST' ? (
              renderListView()
            ) : (
@@ -1395,6 +1485,59 @@ export default function App() {
            )}
         </div>
         
+        {/* Bulk Action Bar */}
+        {selectedTaskIds.size > 0 && (
+          <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-slate-900/90 backdrop-blur-md border border-slate-700 rounded-2xl shadow-2xl p-2 px-4 flex items-center gap-3 animate-in slide-in-from-bottom-6 z-40 max-w-[90vw]">
+              <div className="flex items-center gap-2 border-r border-slate-700 pr-3 mr-1">
+                  <div className="bg-primary text-white text-xs font-bold rounded-md w-6 h-6 flex items-center justify-center">
+                      {selectedTaskIds.size}
+                  </div>
+                  <span className="text-xs font-medium text-slate-300 hidden sm:inline">Selezionati</span>
+              </div>
+
+              <button 
+                  onClick={handleBulkCopy}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-300 hover:bg-slate-800 rounded-lg transition-colors"
+                  title="Copia lista titoli (per Excel/Chat)"
+              >
+                  <Copy size={14} />
+                  <span className="hidden sm:inline">Copia</span>
+              </button>
+
+              <div className="h-6 w-px bg-slate-700/50"></div>
+
+              <div className="relative group">
+                  <button className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-300 hover:bg-slate-800 rounded-lg transition-colors">
+                      <ListTodo size={14} />
+                      <span className="hidden sm:inline">Stato</span>
+                      <ChevronUp size={12} className="text-slate-500" />
+                  </button>
+                  <div className="absolute bottom-full left-0 mb-2 w-32 bg-slate-900 border border-slate-700 rounded-lg shadow-xl overflow-hidden hidden group-hover:block animate-in fade-in zoom-in-95">
+                      <button onClick={() => handleBulkStatusChange(TaskStatus.TODO)} className="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 flex items-center gap-2"><Circle size={10}/> Da Fare</button>
+                      <button onClick={() => handleBulkStatusChange(TaskStatus.TEST)} className="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-orange-400 flex items-center gap-2"><Clock size={10}/> Test</button>
+                      <button onClick={() => handleBulkStatusChange(TaskStatus.DONE)} className="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-green-400 flex items-center gap-2"><CheckCircle2 size={10}/> Fatto</button>
+                  </div>
+              </div>
+
+              <div className="h-6 w-px bg-slate-700/50"></div>
+
+              <button 
+                  onClick={handleBulkDelete}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
+              >
+                  <Trash2 size={14} />
+                  <span className="hidden sm:inline">Elimina</span>
+              </button>
+              
+              <button 
+                onClick={() => setSelectedTaskIds(new Set())}
+                className="ml-2 text-slate-500 hover:text-white"
+              >
+                  <X size={16} />
+              </button>
+          </div>
+        )}
+
         {/* Modals */}
         <FirebaseConfigModal 
             isOpen={isSettingsOpen} 
