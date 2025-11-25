@@ -1,5 +1,5 @@
 import { GoogleGenAI, Type } from "@google/genai";
-import { Task } from "../types";
+import { Task, TaskStatus } from "../types";
 
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
@@ -7,12 +7,9 @@ export const generateTasksFromInput = async (input: string, projectId: string): 
   try {
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash",
-      contents: `Sei un project manager esperto. Analizza la seguente richiesta o descrizione di funzionalità e crea una lista di task tecnici concisi e azionabili per sviluppare o risolvere quanto richiesto.
-      
-      Richiesta: "${input}"
-      
-      Restituisci solo i titoli dei task.`,
+      contents: input,
       config: {
+        systemInstruction: "Sei un project manager esperto. Analizza la seguente richiesta o descrizione di funzionalità e crea una lista di task tecnici concisi e azionabili per sviluppare o risolvere quanto richiesto. Restituisci solo i titoli dei task.",
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.ARRAY,
@@ -40,7 +37,7 @@ export const generateTasksFromInput = async (input: string, projectId: string): 
         projectId,
         title: item.title,
         description: item.description,
-        status: "TO DO" as any // Default status
+        status: TaskStatus.TODO
       }));
     }
     return [];
