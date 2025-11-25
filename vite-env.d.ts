@@ -6,12 +6,6 @@ interface ImportMeta {
   readonly env: ImportMetaEnv;
 }
 
-declare namespace NodeJS {
-  interface ProcessEnv {
-    API_KEY: string;
-  }
-}
-
 // Fallback declaration for non-module imports
 declare module "*.css";
 declare module "*.svg";
