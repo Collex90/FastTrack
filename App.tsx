@@ -40,7 +40,12 @@ import {
   Square,
   CheckSquare,
   ListTodo,
-  Layers
+  Layers,
+  Download,
+  Upload,
+  FileJson,
+  RefreshCw,
+  Eraser
 } from 'lucide-react';
 import { Project, Task, TaskStatus, TaskPriority, ViewMode } from './types';
 import { generateTasksFromInput } from './services/geminiService';
@@ -61,7 +66,8 @@ import {
   updateDoc, 
   deleteDoc, 
   doc,
-  writeBatch
+  writeBatch,
+  setDoc
 } from 'firebase/firestore';
 
 // --- Helpers ---
@@ -75,6 +81,16 @@ const generateId = () => {
 };
 
 // --- Components ---
+
+const FastTrackLogo = ({ className = "w-8 h-8", iconSize = 20 }: { className?: string, iconSize?: number }) => (
+  <div className={`relative flex items-center justify-center overflow-hidden rounded-xl bg-gradient-to-br from-blue-600 via-blue-500 to-purple-600 shadow-lg shadow-blue-500/20 ${className}`}>
+      {/* Abstract F / Forward motion symbol */}
+      <svg width={iconSize} height={iconSize} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="text-white drop-shadow-sm">
+        <path d="M4 12L9 7L13 15L20 4" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/>
+        <path d="M9 17L14 12" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" opacity="0.6"/>
+      </svg>
+  </div>
+);
 
 const PriorityBadge = ({ priority, onClick }: { priority: TaskPriority; onClick?: () => void }) => {
   const styles = {
@@ -92,7 +108,7 @@ const PriorityBadge = ({ priority, onClick }: { priority: TaskPriority; onClick?
   return (
     <button
       onClick={(e) => { e.stopPropagation(); onClick && onClick(); }}
-      className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-bold transition-all ${styles[priority]} no-drag`}
+      className={`flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold transition-all ${styles[priority]} no-drag`}
       title={`Priorità: ${priority}`}
     >
       {icons[priority]}
@@ -117,7 +133,7 @@ const StatusBadge = ({ status, onClick }: { status: TaskStatus; onClick?: () => 
   return (
     <button
       onClick={(e) => { e.stopPropagation(); onClick && onClick(); }}
-      className={`flex items-center px-2.5 py-1 rounded-full text-xs font-medium border ${styles[status]} transition-all no-drag`}
+      className={`flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium border ${styles[status]} transition-all no-drag`}
     >
       {icons[status]}
       {status}
@@ -126,21 +142,24 @@ const StatusBadge = ({ status, onClick }: { status: TaskStatus; onClick?: () => 
 };
 
 // Component for Inline Editable Text
-const InlineEditableText = ({ 
-  text, 
-  isDone = false, 
-  onSave,
-  className = "",
-  placeholder = ""
-}: { 
+const InlineEditableText = React.forwardRef<HTMLTextAreaElement, { 
   text: string; 
   isDone?: boolean; 
   onSave: (newText: string) => void;
   className?: string;
   placeholder?: string;
-}) => {
+}>(({ 
+  text, 
+  isDone = false, 
+  onSave,
+  className = "",
+  placeholder = ""
+}, ref) => {
   const [value, setValue] = useState(text);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const innerRef = useRef<HTMLTextAreaElement>(null);
+  
+  // Use passed ref or inner ref
+  const textareaRef = (ref as React.RefObject<HTMLTextAreaElement>) || innerRef;
 
   useEffect(() => {
     setValue(text);
@@ -191,7 +210,9 @@ const InlineEditableText = ({
       placeholder={placeholder}
     />
   );
-};
+});
+
+InlineEditableText.displayName = 'InlineEditableText';
 
 const CollapsibleDescription = ({ text, onUpdate }: { text: string, onUpdate: (val: string) => void }) => {
     const [isOpen, setIsOpen] = useState(false);
@@ -199,23 +220,25 @@ const CollapsibleDescription = ({ text, onUpdate }: { text: string, onUpdate: (v
     if (!text) return null;
 
     return (
-        <div className="mt-2 w-full no-drag">
+        <div className="mt-0.5 w-full no-drag">
             {!isOpen ? (
                 <button 
                     onClick={() => setIsOpen(true)}
-                    className="flex items-center gap-1 text-[11px] text-slate-500 hover:text-primary transition-colors select-none"
+                    onPointerDown={(e) => e.stopPropagation()}
+                    className="flex items-center gap-1 text-[10px] text-slate-500 hover:text-primary transition-colors select-none leading-none py-0.5"
                 >
                     <ChevronDown size={12} />
                     Mostra note ({text.split('\n')[0].substring(0, 30)}...)
                 </button>
             ) : (
                 <div 
-                    className="bg-slate-900/50 rounded p-2 border border-slate-800/50 w-full animate-in fade-in zoom-in-95 duration-200 cursor-auto no-drag"
+                    className="bg-slate-900/50 rounded p-2 border border-slate-800/50 w-full animate-in fade-in zoom-in-95 duration-200 cursor-auto no-drag mt-1"
                     onMouseDown={(e) => e.stopPropagation()}
+                    onPointerDown={(e) => e.stopPropagation()}
                 >
                     <button 
                         onClick={() => setIsOpen(false)}
-                        className="flex items-center gap-1 text-[11px] text-primary hover:text-blue-300 font-medium mb-1 select-none"
+                        className="flex items-center gap-1 text-[10px] text-primary hover:text-blue-300 font-medium mb-1 select-none"
                     >
                         <ChevronUp size={12} /> Nascondi note
                     </button>
@@ -285,21 +308,21 @@ const TaskItem: React.FC<TaskItemProps> = ({
     <div 
       draggable="true"
       onDragStart={handleDragStartInternal}
-      className={`group relative bg-surface rounded-xl border transition-all shadow-md cursor-grab active:cursor-grabbing ${viewMode === 'LIST' ? 'flex flex-col md:flex-row md:items-start p-3 mb-2' : 'p-2.5 mb-2 flex flex-col'} ${isSelected ? 'border-primary/60 bg-primary/5' : 'border-slate-700/50 hover:border-primary/40'}`}
+      className={`group relative bg-surface rounded-lg border transition-all shadow-sm cursor-grab active:cursor-grabbing ${viewMode === 'LIST' ? 'flex flex-col md:flex-row md:items-start px-3 py-2 mb-1.5' : 'px-3 py-2 mb-1.5 flex flex-col'} ${isSelected ? 'border-primary/60 bg-primary/5' : 'border-slate-700/50 hover:border-primary/40'}`}
     >
-      <div className="absolute left-1 top-1/2 -translate-y-1/2 text-slate-700 opacity-0 group-hover:opacity-100 transition-opacity hidden md:block pointer-events-none">
-          <GripVertical size={14} />
+      <div className="absolute left-0.5 top-1/2 -translate-y-1/2 text-slate-700 opacity-0 group-hover:opacity-100 transition-opacity hidden md:block pointer-events-none">
+          <GripVertical size={12} />
       </div>
 
-      <div className={`flex items-start flex-1 min-w-0 ${viewMode === 'LIST' ? 'md:ml-3 md:mr-4' : 'mb-1.5'}`}>
+      <div className={`flex items-start flex-1 min-w-0 ${viewMode === 'LIST' ? 'md:ml-3 md:mr-4' : 'mb-1'}`}>
          {/* Checkbox Selection */}
          <div 
             onClick={(e) => { e.stopPropagation(); onToggleSelection(); }}
             onPointerDown={(e) => e.stopPropagation()}
             onMouseDown={(e) => e.stopPropagation()}
-            className={`mr-2 mt-1 cursor-pointer transition-colors no-drag ${isSelected ? 'text-primary' : 'text-slate-600 hover:text-slate-400'}`}
+            className={`mr-2.5 mt-0.5 cursor-pointer transition-colors no-drag ${isSelected ? 'text-primary' : 'text-slate-600 hover:text-slate-400'}`}
          >
-             {isSelected ? <CheckSquare size={18} /> : <Square size={18} />}
+             {isSelected ? <CheckSquare size={16} /> : <Square size={16} />}
          </div>
 
          <div className="flex-1 min-w-0">
@@ -307,7 +330,7 @@ const TaskItem: React.FC<TaskItemProps> = ({
             text={task.title} 
             isDone={task.status === TaskStatus.DONE} 
             onSave={(val) => onUpdateTitle(task, val)} 
-            className="text-sm font-medium"
+            className="text-sm font-medium leading-tight"
             />
             {viewMode === 'LIST' && task.description && (
             <CollapsibleDescription 
@@ -316,16 +339,20 @@ const TaskItem: React.FC<TaskItemProps> = ({
             />
             )}
             {viewMode === 'KANBAN' && task.description && (
-            <div className="mt-1.5 text-xs text-slate-500 line-clamp-3 whitespace-pre-wrap leading-tight">{task.description}</div>
+            <div 
+                className="mt-1 text-[11px] text-slate-500 line-clamp-2 whitespace-pre-wrap leading-tight no-drag cursor-text"
+                onPointerDown={(e) => e.stopPropagation()}
+                onMouseDown={(e) => e.stopPropagation()}
+            >{task.description}</div>
             )}
          </div>
       </div>
 
-      <div className={`flex items-center justify-between ${viewMode === 'LIST' ? 'gap-3 mt-2 md:mt-0 md:self-start' : 'w-full pt-1.5 border-t border-slate-700/50'}`}
+      <div className={`flex items-center justify-between ${viewMode === 'LIST' ? 'gap-3 mt-1 md:mt-0 md:self-start' : 'w-full pt-1.5 border-t border-slate-700/50 mt-1'}`}
         // Stop propagation on action bar to prevent drag start from empty spaces in toolbar
         onMouseDown={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center gap-2 no-drag">
+        <div className="flex items-center gap-1.5 no-drag">
           <StatusBadge status={task.status} onClick={() => onCycleStatus(task)} />
           <PriorityBadge priority={task.priority} onClick={() => onCyclePriority(task)} />
         </div>
@@ -333,24 +360,24 @@ const TaskItem: React.FC<TaskItemProps> = ({
         <div className={`flex items-center gap-1 transition-opacity no-drag`}>
           <button 
               onClick={handleCopy}
-              className="p-1.5 text-slate-500 hover:text-green-400 hover:bg-slate-700 rounded transition-colors"
+              className="p-1 text-slate-500 hover:text-green-400 hover:bg-slate-700 rounded transition-colors"
               title="Copia Titolo e Note (Inline)"
           >
-              {isCopied ? <Check size={14} className="text-green-500" /> : <Copy size={14} />}
+              {isCopied ? <Check size={13} className="text-green-500" /> : <Copy size={13} />}
           </button>
           <button 
               onClick={() => onEdit(task)}
-              className="p-1.5 text-slate-500 hover:text-primary hover:bg-slate-700 rounded transition-colors"
+              className="p-1 text-slate-500 hover:text-primary hover:bg-slate-700 rounded transition-colors"
               title="Modifica dettaglio"
           >
-              <Pencil size={14} />
+              <Pencil size={13} />
           </button>
           <button 
               onClick={(e) => { e.stopPropagation(); onDelete(task.id); }} 
-              className="p-1.5 text-slate-500 hover:text-red-400 hover:bg-slate-700 rounded transition-colors"
+              className="p-1 text-slate-500 hover:text-red-400 hover:bg-slate-700 rounded transition-colors"
               title="Elimina"
           >
-              <Trash2 size={14} />
+              <Trash2 size={13} />
           </button>
         </div>
       </div>
@@ -358,9 +385,21 @@ const TaskItem: React.FC<TaskItemProps> = ({
   );
 };
 
-// --- Config Modal ---
+// --- Config & Backup Modal ---
 
-const FirebaseConfigModal = ({ isOpen, onClose, onSave }: { isOpen: boolean, onClose: () => void, onSave: (cfg: any) => void }) => {
+const FirebaseConfigModal = ({ 
+    isOpen, 
+    onClose, 
+    onSave, 
+    dataToBackup,
+    userId
+}: { 
+    isOpen: boolean, 
+    onClose: () => void, 
+    onSave: (cfg: any) => void,
+    dataToBackup: { projects: Project[], tasks: Task[] },
+    userId: string | undefined
+}) => {
     const [config, setConfig] = useState({
         apiKey: "",
         authDomain: "",
@@ -371,6 +410,9 @@ const FirebaseConfigModal = ({ isOpen, onClose, onSave }: { isOpen: boolean, onC
     });
     const [pasteInput, setPasteInput] = useState("");
     const [parseSuccess, setParseSuccess] = useState(false);
+    const [backupLoading, setBackupLoading] = useState(false);
+    const [restoreStatus, setRestoreStatus] = useState<string | null>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
         // Preload existing config if available
@@ -393,8 +435,6 @@ const FirebaseConfigModal = ({ isOpen, onClose, onSave }: { isOpen: boolean, onC
         const keys = ["apiKey", "authDomain", "projectId", "storageBucket", "messagingSenderId", "appId"];
 
         keys.forEach(key => {
-            // Supporta: key: "value", "key": "value", key: 'value'
-            // Regex cerca la chiave seguita opzionalmente da quote, poi :, poi opzionalmente spazi, poi il valore tra quote
             const regex = new RegExp(`["']?${key}["']?\\s*:\\s*["']([^"']+)["']`);
             const match = pasteInput.match(regex);
             if (match && match[1]) {
@@ -406,12 +446,131 @@ const FirebaseConfigModal = ({ isOpen, onClose, onSave }: { isOpen: boolean, onC
         if (found) {
             setConfig(newConfig);
             setParseSuccess(true);
-            setPasteInput(""); // Pulisci l'input
-            // Rimuovi messaggio successo dopo 3 secondi
+            setPasteInput("");
             setTimeout(() => setParseSuccess(false), 3000);
         } else {
             alert("Nessuna configurazione valida trovata nel testo incollato.");
         }
+    };
+
+    const handleBackup = () => {
+        if (!userId) return;
+        
+        const backupData = {
+            timestamp: Date.now(),
+            version: "1.0",
+            userId: userId,
+            source: isFirebaseConfigured ? "firebase" : "local",
+            projects: dataToBackup.projects,
+            tasks: dataToBackup.tasks
+        };
+
+        const blob = new Blob([JSON.stringify(backupData, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `fasttrack-backup-${new Date().toISOString().split('T')[0]}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    };
+
+    const handleRestoreClick = () => {
+        fileInputRef.current?.click();
+    };
+
+    const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file || !userId) return;
+
+        setBackupLoading(true);
+        setRestoreStatus("Analisi file...");
+
+        const reader = new FileReader();
+        reader.onload = async (event) => {
+            try {
+                const json = JSON.parse(event.target?.result as string);
+                
+                if (!Array.isArray(json.projects) || !Array.isArray(json.tasks)) {
+                    throw new Error("Formato backup non valido");
+                }
+
+                const projectsToRestore = json.projects as Project[];
+                const tasksToRestore = json.tasks as Task[];
+
+                setRestoreStatus(`Ripristino di ${projectsToRestore.length} progetti e ${tasksToRestore.length} task...`);
+
+                if (isFirebaseConfigured && db) {
+                    // Firebase Restore (Batch)
+                    const batchSize = 450; // Firestore limit is 500
+                    let batch = writeBatch(db);
+                    let count = 0;
+
+                    const commitBatch = async () => {
+                        await batch.commit();
+                        batch = writeBatch(db);
+                        count = 0;
+                    };
+
+                    // Process Projects
+                    for (const p of projectsToRestore) {
+                        const ref = doc(db, "projects", p.id);
+                        // Force userId to current user
+                        batch.set(ref, { ...p, userId: userId }, { merge: true });
+                        count++;
+                        if (count >= batchSize) await commitBatch();
+                    }
+
+                    // Process Tasks
+                    for (const t of tasksToRestore) {
+                        const ref = doc(db, "tasks", t.id);
+                        batch.set(ref, { ...t, userId: userId }, { merge: true });
+                        count++;
+                        if (count >= batchSize) await commitBatch();
+                    }
+
+                    if (count > 0) await commitBatch();
+
+                } else {
+                    // Local Restore (Merge)
+                    const currentProjects = JSON.parse(localStorage.getItem('ft_projects_local') || '[]');
+                    const currentTasks = JSON.parse(localStorage.getItem('ft_tasks_local') || '[]');
+                    
+                    // Merge strategies: imported wins if ID matches
+                    const mergedProjects = [...currentProjects];
+                    projectsToRestore.forEach(p => {
+                        const idx = mergedProjects.findIndex(cp => cp.id === p.id);
+                        if (idx >= 0) mergedProjects[idx] = { ...p, userId };
+                        else mergedProjects.push({ ...p, userId });
+                    });
+
+                    const mergedTasks = [...currentTasks];
+                    tasksToRestore.forEach(t => {
+                        const idx = mergedTasks.findIndex(ct => ct.id === t.id);
+                        if (idx >= 0) mergedTasks[idx] = { ...t, userId };
+                        else mergedTasks.push({ ...t, userId });
+                    });
+
+                    localStorage.setItem('ft_projects_local', JSON.stringify(mergedProjects));
+                    localStorage.setItem('ft_tasks_local', JSON.stringify(mergedTasks));
+                    
+                    // Force reload to see changes
+                    window.location.reload();
+                }
+
+                setRestoreStatus("Ripristino completato con successo!");
+                setTimeout(() => setRestoreStatus(null), 3000);
+
+            } catch (error) {
+                console.error(error);
+                setRestoreStatus("Errore durante il ripristino: " + (error as any).message);
+            } finally {
+                setBackupLoading(false);
+                if (fileInputRef.current) fileInputRef.current.value = '';
+            }
+        };
+        reader.readAsText(file);
     };
 
     if (!isOpen) return null;
@@ -426,67 +585,105 @@ const FirebaseConfigModal = ({ isOpen, onClose, onSave }: { isOpen: boolean, onC
                         <Database size={24} />
                     </div>
                     <div>
-                        <h1 className="text-xl font-bold text-white">Configurazione Firebase</h1>
-                        <p className="text-sm text-slate-400">Connetti il tuo database Cloud</p>
+                        <h1 className="text-xl font-bold text-white">Configurazione & Dati</h1>
+                        <p className="text-sm text-slate-400">Gestisci connessione cloud e backup</p>
                     </div>
                 </div>
 
-                <div className="flex-1 overflow-y-auto custom-scrollbar pr-2">
+                <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 space-y-8">
                     
-                    {/* Area Incolla Rapido */}
-                    <div className="mb-6 bg-slate-900 p-4 rounded-xl border border-slate-800">
-                        <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-2">
-                            <ClipboardPaste size={14} />
-                            Incolla Configurazione Rapida
-                        </label>
-                        <p className="text-[10px] text-slate-500 mb-2">
-                            Copia l'intero oggetto <code>firebaseConfig</code> dalla console di Firebase e incollalo qui sotto.
+                    {/* SEZIONE 1: CONFIGURAZIONE */}
+                    <div className="space-y-4">
+                        <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider border-b border-slate-800 pb-1">Connessione Firebase</h3>
+                        
+                        {/* Area Incolla Rapido */}
+                        <div className="bg-slate-900 p-4 rounded-xl border border-slate-800">
+                            <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-2">
+                                <ClipboardPaste size={14} />
+                                Incolla Configurazione Rapida
+                            </label>
+                            <textarea
+                                value={pasteInput}
+                                onChange={(e) => setPasteInput(e.target.value)}
+                                placeholder={`const firebaseConfig = {\n  apiKey: "...",\n  authDomain: "...",\n  ...\n};`}
+                                className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-xs font-mono text-slate-300 focus:border-primary focus:outline-none h-20 resize-none mb-2"
+                            />
+                            <button
+                                onClick={handlePasteParse}
+                                disabled={!pasteInput.trim()}
+                                className="w-full py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium rounded border border-slate-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                            >
+                                <ArrowDown size={12} />
+                                Analizza ed Estrai Dati
+                            </button>
+                            {parseSuccess && (
+                                <div className="mt-2 text-xs text-green-400 flex items-center gap-1">
+                                    <CheckCircle2 size={12} /> Campi compilati!
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="grid grid-cols-1 gap-3">
+                            {Object.keys(config).map((key) => (
+                                <div key={key}>
+                                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 block">{key}</label>
+                                    <input 
+                                        type="text"
+                                        name={key}
+                                        value={(config as any)[key]}
+                                        onChange={handleChange}
+                                        className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-sm text-white focus:border-primary focus:outline-none"
+                                    />
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* SEZIONE 2: BACKUP & RESTORE */}
+                    <div className="space-y-4">
+                        <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider border-b border-slate-800 pb-1">Backup e Ripristino</h3>
+                        <p className="text-xs text-slate-400">
+                            Esporta tutti i tuoi progetti e task in un file JSON per sicurezza, oppure importa un backup precedente.
                         </p>
-                        <textarea
-                            value={pasteInput}
-                            onChange={(e) => setPasteInput(e.target.value)}
-                            placeholder={`const firebaseConfig = {\n  apiKey: "...",\n  authDomain: "...",\n  ...\n};`}
-                            className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-xs font-mono text-slate-300 focus:border-primary focus:outline-none h-24 resize-none mb-2"
-                        />
-                        <button
-                            onClick={handlePasteParse}
-                            disabled={!pasteInput.trim()}
-                            className="w-full py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium rounded border border-slate-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
-                        >
-                            <ArrowDown size={12} />
-                            Analizza ed Estrai Dati
-                        </button>
-                        {parseSuccess && (
-                            <div className="mt-2 text-xs text-green-400 flex items-center gap-1 animate-in fade-in slide-in-from-top-1">
-                                <CheckCircle2 size={12} /> Campi compilati con successo!
+                        
+                        <div className="grid grid-cols-2 gap-3">
+                            <button 
+                                onClick={handleBackup}
+                                className="flex flex-col items-center justify-center gap-2 p-4 bg-slate-900 border border-slate-700 hover:border-primary/50 hover:bg-slate-800 rounded-xl transition-all group"
+                            >
+                                <div className="p-2 bg-slate-800 group-hover:bg-primary/20 rounded-full text-slate-400 group-hover:text-primary transition-colors">
+                                    <Download size={20} />
+                                </div>
+                                <span className="text-xs font-bold text-slate-300">Scarica Backup</span>
+                            </button>
+
+                            <button 
+                                onClick={handleRestoreClick}
+                                disabled={backupLoading}
+                                className="flex flex-col items-center justify-center gap-2 p-4 bg-slate-900 border border-slate-700 hover:border-orange-500/50 hover:bg-slate-800 rounded-xl transition-all group disabled:opacity-50"
+                            >
+                                <div className="p-2 bg-slate-800 group-hover:bg-orange-500/20 rounded-full text-slate-400 group-hover:text-orange-500 transition-colors">
+                                    {backupLoading ? <Loader2 size={20} className="animate-spin" /> : <Upload size={20} />}
+                                </div>
+                                <span className="text-xs font-bold text-slate-300">Ripristina Dati</span>
+                            </button>
+                            <input 
+                                type="file" 
+                                accept=".json" 
+                                ref={fileInputRef} 
+                                className="hidden" 
+                                onChange={handleFileChange}
+                            />
+                        </div>
+
+                        {restoreStatus && (
+                            <div className={`text-xs p-2 rounded border flex items-center gap-2 ${restoreStatus.includes('Errore') ? 'bg-red-500/10 border-red-500/30 text-red-400' : 'bg-green-500/10 border-green-500/30 text-green-400'}`}>
+                                <RefreshCw size={12} className={backupLoading ? "animate-spin" : ""} />
+                                {restoreStatus}
                             </div>
                         )}
                     </div>
 
-                    <div className="space-y-4">
-                        <div className="relative">
-                            <div className="absolute inset-0 flex items-center" aria-hidden="true">
-                                <div className="w-full border-t border-slate-800"></div>
-                            </div>
-                            <div className="relative flex justify-center">
-                                <span className="bg-surface px-2 text-xs text-slate-500">oppure inserisci manualmente</span>
-                            </div>
-                        </div>
-
-                        {Object.keys(config).map((key) => (
-                            <div key={key}>
-                                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 block">{key}</label>
-                                <input 
-                                    type="text"
-                                    name={key}
-                                    value={(config as any)[key]}
-                                    onChange={handleChange}
-                                    placeholder={`...`}
-                                    className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-sm text-white focus:border-primary focus:outline-none"
-                                />
-                            </div>
-                        ))}
-                    </div>
                 </div>
 
                 <div className="mt-6 flex gap-3 shrink-0 pt-4 border-t border-slate-800">
@@ -566,9 +763,7 @@ const LoginScreen = ({ onMockLogin }: { onMockLogin: () => void }) => {
 
       <div className="w-full max-w-md bg-surface border border-slate-700/50 rounded-2xl shadow-2xl p-8 relative z-10 animate-fade-in">
         <div className="flex flex-col items-center mb-8">
-          <div className="w-12 h-12 bg-gradient-to-br from-primary to-purple-600 rounded-xl shadow-lg shadow-primary/20 flex items-center justify-center mb-4">
-            <LayoutList className="text-white" size={24} />
-          </div>
+          <FastTrackLogo className="w-16 h-16 mb-4" iconSize={32} />
           <h1 className="text-2xl font-bold text-white mb-1">FastTrack</h1>
           <p className="text-slate-400 text-sm text-center">
             {isFirebaseConfigured 
@@ -696,6 +891,11 @@ export default function App() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isProjectMenuOpen, setIsProjectMenuOpen] = useState(false);
   
+  // Confirmation Modal State
+  const [confirmModal, setConfirmModal] = useState<{isOpen: boolean, count: number, onConfirm: () => void}>({
+      isOpen: false, count: 0, onConfirm: () => {}
+  });
+  
   // Refs
   const searchInputRef = useRef<HTMLInputElement>(null);
   
@@ -783,7 +983,7 @@ export default function App() {
             }
         }
     }
-  }, [user, isFirebaseConfigured]); // removed activeProjectId dependency to avoid loops
+  }, [user, isFirebaseConfigured]); 
 
   // Tasks Sync
   useEffect(() => {
@@ -976,11 +1176,15 @@ export default function App() {
       setSelectedTaskIds(new Set());
   };
 
-  const handleBulkDelete = async () => {
-      // Usa un piccolo timeout per permettere al click di completarsi e non bloccare il thread UI prima del confirm
-      setTimeout(async () => {
-        if (!window.confirm(`Sei sicuro di voler eliminare ${selectedTaskIds.size} task?`)) return;
-        
+  const requestBulkDelete = () => {
+      setConfirmModal({
+          isOpen: true,
+          count: selectedTaskIds.size,
+          onConfirm: performBulkDelete
+      });
+  };
+
+  const performBulkDelete = async () => {
         const ids = Array.from(selectedTaskIds);
         
         if (isFirebaseConfigured && db) {
@@ -1003,7 +1207,7 @@ export default function App() {
         }
         // Pulisci selezione SOLO alla fine
         setSelectedTaskIds(new Set());
-      }, 50);
+        setConfirmModal({ ...confirmModal, isOpen: false });
   };
 
   const handleBulkStatusChange = async (newStatus: TaskStatus) => {
@@ -1033,6 +1237,15 @@ export default function App() {
         titleTextareaRef.current.style.height = 'auto';
         titleTextareaRef.current.focus();
     }
+  };
+
+  const handleClearInput = () => {
+      setNewTaskTitle('');
+      setNewTaskDesc('');
+      if (titleTextareaRef.current) {
+          titleTextareaRef.current.style.height = 'auto';
+          titleTextareaRef.current.focus();
+      }
   };
 
   const generateAiTasks = async () => {
@@ -1180,7 +1393,7 @@ export default function App() {
         onDragOver={onDragOver}
         onDrop={(e) => onDrop(e, status)}
       >
-        <div className={`p-4 border-b ${borderColorClass} flex items-center justify-between sticky top-0 bg-slate-900/90 backdrop-blur-sm rounded-t-xl z-10`}>
+        <div className={`p-4 border-b ${borderColorClass} flex items-center justify-between sticky top-0 bg-slate-900/90 backdrop-blur-md rounded-t-xl z-10`}>
           <div className="flex items-center gap-2">
             <h3 className={`font-bold ${colorClass} text-sm uppercase tracking-wide`}>{title}</h3>
           </div>
@@ -1272,7 +1485,7 @@ export default function App() {
       <aside className={`${isSidebarOpen ? 'w-64' : 'w-0'} bg-slate-900 border-r border-slate-800 transition-all duration-300 flex flex-col overflow-hidden whitespace-nowrap z-20 absolute md:relative h-full shadow-xl`}>
         <div className="p-4 border-b border-slate-800 flex items-center justify-between bg-slate-900 shrink-0">
            <div className="font-bold text-lg tracking-tight text-white flex items-center gap-2">
-             <div className="w-6 h-6 bg-gradient-to-br from-primary to-purple-600 rounded-md"></div>
+             <FastTrackLogo className="w-6 h-6 rounded-md" iconSize={16} />
              FastTrack
            </div>
            <button onClick={() => setIsSidebarOpen(false)} className="text-slate-400 hover:text-white transition-colors">
@@ -1361,7 +1574,7 @@ export default function App() {
         )}
 
         {/* Header */}
-        <header className="h-16 border-b border-slate-800 flex items-center justify-between px-4 bg-background/80 backdrop-blur-md sticky top-0 z-30 shrink-0 gap-4">
+        <header className="h-16 border-b border-slate-800 flex items-center justify-between px-4 bg-background/80 backdrop-blur-md sticky top-0 z-50 shrink-0 gap-4">
           <div className="flex items-center gap-3 flex-1 min-w-0">
             {!isSidebarOpen && (
               <button onClick={() => setIsSidebarOpen(true)} className="p-2 text-slate-400 hover:bg-slate-800 rounded-lg">
@@ -1549,6 +1762,17 @@ export default function App() {
                         className="flex-1 bg-slate-900/30 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-300 placeholder-slate-600 focus:outline-none focus:border-slate-500 resize-none min-h-[38px]"
                     />
                     
+                    {(newTaskTitle || newTaskDesc) && (
+                        <button 
+                            type="button"
+                            onClick={handleClearInput}
+                            className="px-3 py-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors flex items-center gap-1 text-xs font-medium border border-transparent hover:border-slate-700"
+                            title="Svuota campi"
+                        >
+                            <Eraser size={16} />
+                        </button>
+                    )}
+
                     <button 
                         type="button"
                         onClick={() => setAiModalOpen(true)}
@@ -1627,7 +1851,7 @@ export default function App() {
                   onClick={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
-                    handleBulkDelete();
+                    requestBulkDelete();
                   }}
                   className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
               >
@@ -1648,8 +1872,41 @@ export default function App() {
         <FirebaseConfigModal 
             isOpen={isSettingsOpen} 
             onClose={() => setIsSettingsOpen(false)} 
-            onSave={saveConfig} 
+            onSave={saveConfig}
+            dataToBackup={{ projects, tasks }}
+            userId={user?.uid}
         />
+
+        {confirmModal.isOpen && (
+            <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                <div className="bg-slate-900 border border-slate-700 rounded-xl shadow-2xl p-6 w-full max-w-sm animate-in fade-in zoom-in-95">
+                    <div className="flex flex-col items-center text-center mb-6">
+                        <div className="w-12 h-12 bg-red-500/20 text-red-500 rounded-full flex items-center justify-center mb-3">
+                            <Trash2 size={24} />
+                        </div>
+                        <h3 className="text-lg font-bold text-white mb-1">Sei sicuro?</h3>
+                        <p className="text-sm text-slate-400">
+                            Stai per eliminare <strong>{confirmModal.count}</strong> task. 
+                            Questa azione non può essere annullata.
+                        </p>
+                    </div>
+                    <div className="flex gap-3">
+                        <button 
+                            onClick={() => setConfirmModal({...confirmModal, isOpen: false})}
+                            className="flex-1 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-sm font-medium transition-colors"
+                        >
+                            Annulla
+                        </button>
+                        <button 
+                            onClick={confirmModal.onConfirm}
+                            className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-bold transition-colors"
+                        >
+                            Elimina
+                        </button>
+                    </div>
+                </div>
+            </div>
+        )}
 
         {aiModalOpen && (
           <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
