@@ -7,39 +7,79 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
       tailwind.config = {
+        darkMode: 'class',
         theme: {
           extend: {
             colors: {
-              background: '#0f172a', // Slate 900
-              surface: '#1e293b', // Slate 800
-              primary: '#3b82f6', // Blue 500
-              secondary: '#64748b', // Slate 500
-              success: '#22c55e', // Green 500
-              warning: '#f59e0b', // Amber 500
+              background: 'var(--bg-app)',
+              surface: 'var(--bg-surface)',
+              'surface-hover': 'var(--bg-surface-hover)',
+              border: 'var(--border-color)',
+              textMain: 'var(--text-main)',
+              textMuted: 'var(--text-muted)',
+              primary: 'var(--primary)',
+              secondary: '#64748b',
+              success: '#22c55e',
+              warning: '#f59e0b',
             }
           }
         }
       }
     </script>
     <style>
-      body {
-        background-color: #0f172a;
-        color: #f8fafc;
+      :root {
+        /* Dark Theme (Default) */
+        --bg-app: #0f172a; /* Slate 900 */
+        --bg-surface: #1e293b; /* Slate 800 */
+        --bg-surface-hover: #334155; /* Slate 700 */
+        --border-color: #334155; /* Slate 700 */
+        --text-main: #f8fafc; /* Slate 50 */
+        --text-muted: #94a3b8; /* Slate 400 */
+        --primary: #3b82f6;
       }
+
+      .light {
+        /* Light Theme - High Contrast */
+        --bg-app: #f1f5f9; /* Slate 100 - Distinct background */
+        --bg-surface: #ffffff; /* Pure White - Cards */
+        --bg-surface-hover: #f8fafc; /* Very light gray for hover */
+        --border-color: #cbd5e1; /* Slate 300 - Stronger borders */
+        --text-main: #0f172a; /* Slate 900 - High contrast text */
+        --text-muted: #475569; /* Slate 600 - Readable muted text */
+        --primary: #2563eb; /* Blue 600 */
+      }
+
+      body {
+        background-color: var(--bg-app);
+        color: var(--text-main);
+        transition: background-color 0.3s, color 0.3s;
+      }
+      
+      /* Transitions for theme switch */
+      *, *::before, *::after {
+        border-color: var(--border-color);
+      }
+
       /* Custom Scrollbar for cleaner look */
       ::-webkit-scrollbar {
         width: 8px;
         height: 8px;
       }
       ::-webkit-scrollbar-track {
-        background: #1e293b; 
+        background: transparent; 
       }
       ::-webkit-scrollbar-thumb {
-        background: #475569; 
+        background: var(--border-color); 
         border-radius: 4px;
       }
       ::-webkit-scrollbar-thumb:hover {
-        background: #64748b; 
+        background: var(--text-muted); 
+      }
+      
+      .no-drag {
+        -webkit-user-drag: none;
+        user-select: text;
+        cursor: text;
       }
     </style>
   <script type="importmap">

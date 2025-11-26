@@ -40,7 +40,9 @@ import {
   Square,
   CheckSquare,
   ListTodo,
-  Layers
+  Layers,
+  Sun,
+  Moon
 } from 'lucide-react';
 import { Project, Task, TaskStatus, TaskPriority, ViewMode } from './types';
 import { generateTasksFromInput } from './services/geminiService';
@@ -66,7 +68,6 @@ import {
 
 // --- Helpers ---
 
-// Helper for ID generation to avoid crypto type issues
 const generateId = () => {
     if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
         return crypto.randomUUID();
@@ -78,8 +79,8 @@ const generateId = () => {
 
 const PriorityBadge = ({ priority, onClick }: { priority: TaskPriority; onClick?: () => void }) => {
   const styles = {
-    [TaskPriority.LOW]: 'text-slate-400 hover:bg-slate-800',
-    [TaskPriority.MEDIUM]: 'text-yellow-500 hover:bg-yellow-500/10',
+    [TaskPriority.LOW]: 'text-textMuted hover:bg-surface-hover',
+    [TaskPriority.MEDIUM]: 'text-warning hover:bg-warning/10',
     [TaskPriority.HIGH]: 'text-red-500 hover:bg-red-500/10',
   };
 
@@ -91,8 +92,9 @@ const PriorityBadge = ({ priority, onClick }: { priority: TaskPriority; onClick?
 
   return (
     <button
+      onPointerDown={(e) => e.stopPropagation()}
       onClick={(e) => { e.stopPropagation(); onClick && onClick(); }}
-      className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-bold transition-all ${styles[priority]} no-drag`}
+      className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-bold transition-all ${styles[priority]}`}
       title={`Priorità: ${priority}`}
     >
       {icons[priority]}
@@ -103,9 +105,9 @@ const PriorityBadge = ({ priority, onClick }: { priority: TaskPriority; onClick?
 
 const StatusBadge = ({ status, onClick }: { status: TaskStatus; onClick?: () => void }) => {
   const styles = {
-    [TaskStatus.TODO]: 'bg-slate-700 text-slate-300 border-slate-600 hover:bg-slate-600',
-    [TaskStatus.TEST]: 'bg-orange-900/40 text-orange-400 border-orange-700/50 hover:bg-orange-900/60',
-    [TaskStatus.DONE]: 'bg-green-900/30 text-green-400 border-green-700/50 hover:bg-green-900/50',
+    [TaskStatus.TODO]: 'bg-surface-hover text-textMuted border-border hover:bg-border',
+    [TaskStatus.TEST]: 'bg-orange-500/10 text-orange-500 border-orange-500/20 hover:bg-orange-500/20',
+    [TaskStatus.DONE]: 'bg-green-500/10 text-green-500 border-green-500/20 hover:bg-green-500/20',
   };
 
   const icons = {
@@ -116,8 +118,9 @@ const StatusBadge = ({ status, onClick }: { status: TaskStatus; onClick?: () => 
 
   return (
     <button
+      onPointerDown={(e) => e.stopPropagation()}
       onClick={(e) => { e.stopPropagation(); onClick && onClick(); }}
-      className={`flex items-center px-2.5 py-1 rounded-full text-xs font-medium border ${styles[status]} transition-all no-drag`}
+      className={`flex items-center px-2.5 py-1 rounded-full text-xs font-medium border ${styles[status]} transition-all`}
     >
       {icons[status]}
       {status}
@@ -175,17 +178,18 @@ const InlineEditableText = ({
       onChange={(e) => setValue(e.target.value)}
       onBlur={handleBlur}
       onKeyDown={handleKeyDown}
-      // HACK: Rendi draggable=true ma previeni default su dragStart. 
-      // Questo dice al browser "Gestisco io il drag qui (non facendo nulla)", isolandolo dal genitore.
+      // HACK: CRITICAL FIX FOR DRAG & DROP
+      // 1. draggable=true on input allows us to intercept the drag start
+      // 2. onDragStart prevents default, stopping the parent card from being dragged
       draggable={true}
       onDragStart={(e) => {
         e.preventDefault();
         e.stopPropagation();
       }}
-      className={`w-full bg-transparent border border-transparent rounded px-1 -ml-1 resize-none overflow-hidden focus:bg-slate-800 focus:border-slate-600 focus:outline-none focus:ring-1 focus:ring-primary transition-all whitespace-pre-wrap break-words cursor-text pointer-events-auto no-drag ${isDone ? 'text-slate-500 line-through' : 'text-slate-200'} ${className}`}
-      // Native events to stop propagation
-      onMouseDown={(e) => e.stopPropagation()}
+      // 3. onPointerDown stops the drag initiation logic of browsers before it even starts
       onPointerDown={(e) => e.stopPropagation()}
+      className={`w-full bg-transparent border border-transparent rounded px-1 -ml-1 resize-none overflow-hidden focus:bg-surface focus:border-border focus:outline-none focus:ring-1 focus:ring-primary transition-all whitespace-pre-wrap break-words cursor-text pointer-events-auto ${isDone ? 'text-textMuted line-through' : 'text-textMain'} ${className}`}
+      onMouseDown={(e) => e.stopPropagation()}
       onClick={(e) => e.stopPropagation()}
       rows={1}
       placeholder={placeholder}
@@ -199,30 +203,30 @@ const CollapsibleDescription = ({ text, onUpdate }: { text: string, onUpdate: (v
     if (!text) return null;
 
     return (
-        <div className="mt-2 w-full no-drag">
+        <div className="mt-2 w-full" onPointerDown={(e) => e.stopPropagation()}>
             {!isOpen ? (
                 <button 
                     onClick={() => setIsOpen(true)}
-                    className="flex items-center gap-1 text-[11px] text-slate-500 hover:text-primary transition-colors select-none"
+                    className="flex items-center gap-1 text-[11px] text-textMuted hover:text-primary transition-colors select-none"
                 >
                     <ChevronDown size={12} />
                     Mostra note ({text.split('\n')[0].substring(0, 30)}...)
                 </button>
             ) : (
                 <div 
-                    className="bg-slate-900/50 rounded p-2 border border-slate-800/50 w-full animate-in fade-in zoom-in-95 duration-200 cursor-auto no-drag"
+                    className="bg-surface rounded p-2 border border-border w-full animate-in fade-in zoom-in-95 duration-200 cursor-auto shadow-sm"
                     onMouseDown={(e) => e.stopPropagation()}
                 >
                     <button 
                         onClick={() => setIsOpen(false)}
-                        className="flex items-center gap-1 text-[11px] text-primary hover:text-blue-300 font-medium mb-1 select-none"
+                        className="flex items-center gap-1 text-[11px] text-primary hover:text-blue-400 font-medium mb-1 select-none"
                     >
                         <ChevronUp size={12} /> Nascondi note
                     </button>
                     <InlineEditableText 
                         text={text} 
                         onSave={onUpdate}
-                        className="text-xs text-slate-400 min-h-[60px]"
+                        className="text-xs text-textMuted min-h-[60px]"
                         placeholder="Aggiungi note..."
                     />
                 </div>
@@ -272,8 +276,8 @@ const TaskItem: React.FC<TaskItemProps> = ({
 
   const handleDragStartInternal = (e: React.DragEvent) => {
       const target = e.target as HTMLElement;
-      // Controllo rigoroso: se l'elemento è marcato no-drag o è un input, BLOCCA il drag.
-      if (target.closest('.no-drag') || ['INPUT', 'TEXTAREA', 'BUTTON', 'SELECT'].includes(target.tagName)) {
+      // Safety check: if we are interacting with input/button, stop drag
+      if (['INPUT', 'TEXTAREA', 'BUTTON', 'SELECT'].includes(target.tagName)) {
           e.preventDefault();
           e.stopPropagation();
           return;
@@ -285,9 +289,9 @@ const TaskItem: React.FC<TaskItemProps> = ({
     <div 
       draggable="true"
       onDragStart={handleDragStartInternal}
-      className={`group relative bg-surface rounded-xl border transition-all shadow-sm cursor-grab active:cursor-grabbing ${viewMode === 'LIST' ? 'flex flex-col md:flex-row md:items-start p-3 mb-2' : 'p-2.5 mb-2 flex flex-col'} ${isSelected ? 'border-primary/60 bg-primary/5' : 'border-slate-700/50 hover:border-primary/40'}`}
+      className={`group relative bg-surface rounded-xl border transition-all shadow-sm hover:shadow-md cursor-grab active:cursor-grabbing ${viewMode === 'LIST' ? 'flex flex-col md:flex-row md:items-start p-3 mb-2' : 'p-2.5 mb-2 flex flex-col'} ${isSelected ? 'border-primary/60 bg-primary/5' : 'border-border hover:border-primary/40'}`}
     >
-      <div className="absolute left-1 top-1/2 -translate-y-1/2 text-slate-700 opacity-0 group-hover:opacity-100 transition-opacity hidden md:block pointer-events-none">
+      <div className="absolute left-1 top-1/2 -translate-y-1/2 text-textMuted opacity-0 group-hover:opacity-100 transition-opacity hidden md:block pointer-events-none">
           <GripVertical size={14} />
       </div>
 
@@ -297,7 +301,7 @@ const TaskItem: React.FC<TaskItemProps> = ({
             onClick={(e) => { e.stopPropagation(); onToggleSelection(); }}
             onPointerDown={(e) => e.stopPropagation()}
             onMouseDown={(e) => e.stopPropagation()}
-            className={`mr-2 mt-1 cursor-pointer transition-colors no-drag ${isSelected ? 'text-primary' : 'text-slate-600 hover:text-slate-400'}`}
+            className={`mr-2 mt-1 cursor-pointer transition-colors ${isSelected ? 'text-primary' : 'text-textMuted hover:text-textMain'}`}
          >
              {isSelected ? <CheckSquare size={18} /> : <Square size={18} />}
          </div>
@@ -316,38 +320,38 @@ const TaskItem: React.FC<TaskItemProps> = ({
             />
             )}
             {viewMode === 'KANBAN' && task.description && (
-            <div className="mt-1.5 text-xs text-slate-500 line-clamp-3 whitespace-pre-wrap leading-tight">{task.description}</div>
+            <div className="mt-1.5 text-xs text-textMuted line-clamp-3 whitespace-pre-wrap leading-tight">{task.description}</div>
             )}
          </div>
       </div>
 
-      <div className={`flex items-center justify-between ${viewMode === 'LIST' ? 'gap-3 mt-2 md:mt-0 md:self-start' : 'w-full pt-1.5 border-t border-slate-700/50'}`}
-        // Stop propagation on action bar to prevent drag start from empty spaces in toolbar
+      <div className={`flex items-center justify-between ${viewMode === 'LIST' ? 'gap-3 mt-2 md:mt-0 md:self-start' : 'w-full pt-1.5 border-t border-border'}`}
         onMouseDown={(e) => e.stopPropagation()}
+        onPointerDown={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center gap-2 no-drag">
+        <div className="flex items-center gap-2">
           <StatusBadge status={task.status} onClick={() => onCycleStatus(task)} />
           <PriorityBadge priority={task.priority} onClick={() => onCyclePriority(task)} />
         </div>
         
-        <div className={`flex items-center gap-1 transition-opacity no-drag`}>
+        <div className={`flex items-center gap-1 transition-opacity`}>
           <button 
               onClick={handleCopy}
-              className="p-1.5 text-slate-500 hover:text-green-400 hover:bg-slate-700 rounded transition-colors"
+              className="p-1.5 text-textMuted hover:text-green-500 hover:bg-surface-hover rounded transition-colors"
               title="Copia Titolo e Note (Inline)"
           >
               {isCopied ? <Check size={14} className="text-green-500" /> : <Copy size={14} />}
           </button>
           <button 
               onClick={() => onEdit(task)}
-              className="p-1.5 text-slate-500 hover:text-primary hover:bg-slate-700 rounded transition-colors"
+              className="p-1.5 text-textMuted hover:text-primary hover:bg-surface-hover rounded transition-colors"
               title="Modifica dettaglio"
           >
               <Pencil size={14} />
           </button>
           <button 
               onClick={(e) => { e.stopPropagation(); onDelete(task.id); }} 
-              className="p-1.5 text-slate-500 hover:text-red-400 hover:bg-slate-700 rounded transition-colors"
+              className="p-1.5 text-textMuted hover:text-red-400 hover:bg-surface-hover rounded transition-colors"
               title="Elimina"
           >
               <Trash2 size={14} />
@@ -373,7 +377,6 @@ const FirebaseConfigModal = ({ isOpen, onClose, onSave }: { isOpen: boolean, onC
     const [parseSuccess, setParseSuccess] = useState(false);
 
     useEffect(() => {
-        // Preload existing config if available
         if (isOpen) {
             const saved = getStoredConfig();
             if (saved) setConfig(saved);
@@ -393,8 +396,6 @@ const FirebaseConfigModal = ({ isOpen, onClose, onSave }: { isOpen: boolean, onC
         const keys = ["apiKey", "authDomain", "projectId", "storageBucket", "messagingSenderId", "appId"];
 
         keys.forEach(key => {
-            // Supporta: key: "value", "key": "value", key: 'value'
-            // Regex cerca la chiave seguita opzionalmente da quote, poi :, poi opzionalmente spazi, poi il valore tra quote
             const regex = new RegExp(`["']?${key}["']?\\s*:\\s*["']([^"']+)["']`);
             const match = pasteInput.match(regex);
             if (match && match[1]) {
@@ -406,8 +407,7 @@ const FirebaseConfigModal = ({ isOpen, onClose, onSave }: { isOpen: boolean, onC
         if (found) {
             setConfig(newConfig);
             setParseSuccess(true);
-            setPasteInput(""); // Pulisci l'input
-            // Rimuovi messaggio successo dopo 3 secondi
+            setPasteInput("");
             setTimeout(() => setParseSuccess(false), 3000);
         } else {
             alert("Nessuna configurazione valida trovata nel testo incollato.");
@@ -418,78 +418,64 @@ const FirebaseConfigModal = ({ isOpen, onClose, onSave }: { isOpen: boolean, onC
 
     return (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-             <div className="w-full max-w-lg bg-surface border border-slate-700 rounded-2xl p-6 shadow-2xl relative animate-in fade-in zoom-in-95 flex flex-col max-h-[90vh]">
-                <button onClick={onClose} className="absolute top-4 right-4 text-slate-400 hover:text-white"><X size={20}/></button>
+             <div className="w-full max-w-lg bg-surface border border-border rounded-2xl p-6 shadow-2xl relative animate-in fade-in zoom-in-95 flex flex-col max-h-[90vh]">
+                <button onClick={onClose} className="absolute top-4 right-4 text-textMuted hover:text-textMain"><X size={20}/></button>
                 
                 <div className="flex items-center gap-3 mb-6 shrink-0">
                     <div className="w-10 h-10 bg-orange-500/20 text-orange-500 rounded-lg flex items-center justify-center">
                         <Database size={24} />
                     </div>
                     <div>
-                        <h1 className="text-xl font-bold text-white">Configurazione Firebase</h1>
-                        <p className="text-sm text-slate-400">Connetti il tuo database Cloud</p>
+                        <h1 className="text-xl font-bold text-textMain">Configurazione Firebase</h1>
+                        <p className="text-sm text-textMuted">Connetti il tuo database Cloud</p>
                     </div>
                 </div>
 
                 <div className="flex-1 overflow-y-auto custom-scrollbar pr-2">
-                    
-                    {/* Area Incolla Rapido */}
-                    <div className="mb-6 bg-slate-900 p-4 rounded-xl border border-slate-800">
-                        <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-2">
+                    <div className="mb-6 bg-background p-4 rounded-xl border border-border">
+                        <label className="text-xs font-bold text-textMuted uppercase tracking-wider mb-2 flex items-center gap-2">
                             <ClipboardPaste size={14} />
                             Incolla Configurazione Rapida
                         </label>
-                        <p className="text-[10px] text-slate-500 mb-2">
-                            Copia l'intero oggetto <code>firebaseConfig</code> dalla console di Firebase e incollalo qui sotto.
-                        </p>
                         <textarea
                             value={pasteInput}
                             onChange={(e) => setPasteInput(e.target.value)}
                             placeholder={`const firebaseConfig = {\n  apiKey: "...",\n  authDomain: "...",\n  ...\n};`}
-                            className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-xs font-mono text-slate-300 focus:border-primary focus:outline-none h-24 resize-none mb-2"
+                            className="w-full bg-surface border border-border rounded-lg p-3 text-xs font-mono text-textMain focus:border-primary focus:outline-none h-24 resize-none mb-2"
                         />
                         <button
                             onClick={handlePasteParse}
                             disabled={!pasteInput.trim()}
-                            className="w-full py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium rounded border border-slate-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                            className="w-full py-1.5 bg-surface hover:bg-surface-hover text-textMuted text-xs font-medium rounded border border-border transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
                         >
                             <ArrowDown size={12} />
                             Analizza ed Estrai Dati
                         </button>
                         {parseSuccess && (
-                            <div className="mt-2 text-xs text-green-400 flex items-center gap-1 animate-in fade-in slide-in-from-top-1">
+                            <div className="mt-2 text-xs text-green-500 flex items-center gap-1">
                                 <CheckCircle2 size={12} /> Campi compilati con successo!
                             </div>
                         )}
                     </div>
 
                     <div className="space-y-4">
-                        <div className="relative">
-                            <div className="absolute inset-0 flex items-center" aria-hidden="true">
-                                <div className="w-full border-t border-slate-800"></div>
-                            </div>
-                            <div className="relative flex justify-center">
-                                <span className="bg-surface px-2 text-xs text-slate-500">oppure inserisci manualmente</span>
-                            </div>
-                        </div>
-
                         {Object.keys(config).map((key) => (
                             <div key={key}>
-                                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 block">{key}</label>
+                                <label className="text-[10px] font-bold text-textMuted uppercase tracking-wider mb-1 block">{key}</label>
                                 <input 
                                     type="text"
                                     name={key}
                                     value={(config as any)[key]}
                                     onChange={handleChange}
                                     placeholder={`...`}
-                                    className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-sm text-white focus:border-primary focus:outline-none"
+                                    className="w-full bg-background border border-border rounded p-2 text-sm text-textMain focus:border-primary focus:outline-none"
                                 />
                             </div>
                         ))}
                     </div>
                 </div>
 
-                <div className="mt-6 flex gap-3 shrink-0 pt-4 border-t border-slate-800">
+                <div className="mt-6 flex gap-3 shrink-0 pt-4 border-t border-border">
                      {isFirebaseConfigured && (
                          <button 
                             onClick={resetConfig}
@@ -511,7 +497,7 @@ const FirebaseConfigModal = ({ isOpen, onClose, onSave }: { isOpen: boolean, onC
     );
 };
 
-// --- Login/Register Screen ---
+// --- Login Screen ---
 
 const LoginScreen = ({ onMockLogin }: { onMockLogin: () => void }) => {
   const [isRegister, setIsRegister] = useState(false);
@@ -525,9 +511,7 @@ const LoginScreen = ({ onMockLogin }: { onMockLogin: () => void }) => {
     setLoading(true);
     setError(null);
     
-    // MOCK LOGIN if firebase is not configured
     if (!isFirebaseConfigured) {
-        // Simulate network delay
         setTimeout(() => {
             onMockLogin();
             setLoading(false);
@@ -561,16 +545,13 @@ const LoginScreen = ({ onMockLogin }: { onMockLogin: () => void }) => {
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-background p-4 relative overflow-hidden">
-      <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-blue-600/10 rounded-full blur-[100px]"></div>
-      <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-purple-600/10 rounded-full blur-[100px]"></div>
-
-      <div className="w-full max-w-md bg-surface border border-slate-700/50 rounded-2xl shadow-2xl p-8 relative z-10 animate-fade-in">
+      <div className="w-full max-w-md bg-surface border border-border rounded-2xl shadow-2xl p-8 relative z-10 animate-fade-in">
         <div className="flex flex-col items-center mb-8">
           <div className="w-12 h-12 bg-gradient-to-br from-primary to-purple-600 rounded-xl shadow-lg shadow-primary/20 flex items-center justify-center mb-4">
             <LayoutList className="text-white" size={24} />
           </div>
-          <h1 className="text-2xl font-bold text-white mb-1">FastTrack</h1>
-          <p className="text-slate-400 text-sm text-center">
+          <h1 className="text-2xl font-bold text-textMain mb-1">FastTrack</h1>
+          <p className="text-textMuted text-sm text-center">
             {isFirebaseConfigured 
                 ? (isRegister ? 'Crea un account Cloud' : 'Accedi al tuo account Cloud')
                 : 'Modalità Locale: Accedi con qualsiasi credenziale'
@@ -580,31 +561,31 @@ const LoginScreen = ({ onMockLogin }: { onMockLogin: () => void }) => {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-1">
-            <label className="text-xs font-semibold text-slate-500 ml-1">USERNAME / EMAIL</label>
+            <label className="text-xs font-semibold text-textMuted ml-1">USERNAME / EMAIL</label>
             <div className="relative">
-              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
+              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-textMuted" size={18} />
               <input 
                 type={isFirebaseConfigured ? "email" : "text"}
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder={isFirebaseConfigured ? "nome@esempio.com" : "Inserisci un nome a caso..."}
-                className="w-full bg-slate-900/50 border border-slate-700 rounded-lg py-2.5 pl-10 pr-4 text-slate-200 placeholder-slate-600 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
+                className="w-full bg-background border border-border rounded-lg py-2.5 pl-10 pr-4 text-textMain placeholder-textMuted focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
               />
             </div>
           </div>
           
           <div className="space-y-1">
-            <label className="text-xs font-semibold text-slate-500 ml-1">PASSWORD</label>
+            <label className="text-xs font-semibold text-textMuted ml-1">PASSWORD</label>
             <div className="relative">
-              <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
+              <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-textMuted" size={18} />
               <input 
                 type="password" 
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
-                className="w-full bg-slate-900/50 border border-slate-700 rounded-lg py-2.5 pl-10 pr-4 text-slate-200 placeholder-slate-600 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
+                className="w-full bg-background border border-border rounded-lg py-2.5 pl-10 pr-4 text-textMain placeholder-textMuted focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
               />
             </div>
           </div>
@@ -613,8 +594,7 @@ const LoginScreen = ({ onMockLogin }: { onMockLogin: () => void }) => {
               <div className="bg-blue-500/10 border border-blue-500/20 text-blue-400 text-xs p-3 rounded-lg flex items-start gap-2">
                   <WifiOff size={14} className="shrink-0 mt-0.5" />
                   <span>
-                      Firebase non è configurato. L'accesso avverrà in <strong>Modalità Locale</strong>. 
-                      Potrai configurare il Cloud dalle impostazioni.
+                      Firebase non è configurato. L'accesso avverrà in <strong>Modalità Locale</strong>.
                   </span>
               </div>
           )}
@@ -629,7 +609,7 @@ const LoginScreen = ({ onMockLogin }: { onMockLogin: () => void }) => {
           <button 
             type="submit" 
             disabled={loading}
-            className="w-full bg-primary hover:bg-blue-600 text-white font-semibold py-2.5 rounded-lg transition-all shadow-lg shadow-blue-900/20 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed mt-2"
+            className="w-full bg-primary hover:bg-blue-600 text-white font-semibold py-2.5 rounded-lg transition-all shadow-lg flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed mt-2"
           >
             {loading ? <Loader2 className="animate-spin" size={18} /> : (isRegister ? 'Registrati' : 'Accedi')}
             {!loading && <ArrowRight size={18} />}
@@ -641,7 +621,7 @@ const LoginScreen = ({ onMockLogin }: { onMockLogin: () => void }) => {
             <button 
                 type="button"
                 onClick={() => { setIsRegister(!isRegister); setError(null); }}
-                className="text-sm text-slate-400 hover:text-white transition-colors"
+                className="text-sm text-textMuted hover:text-textMain transition-colors"
             >
                 {isRegister ? 'Hai già un account? Accedi' : 'Non hai un account? Registrati'}
             </button>
@@ -655,36 +635,24 @@ const LoginScreen = ({ onMockLogin }: { onMockLogin: () => void }) => {
 // --- Main App ---
 
 export default function App() {
-  // Mock User State (Local Mode)
   const [mockUser, setMockUser] = useState<User | null>(null);
-
-  // Auth State (Firebase Mode)
   const [fbUser, setFbUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
-
-  // Derived User
   const user = isFirebaseConfigured ? fbUser : mockUser;
 
-  // Data State
   const [projects, setProjects] = useState<Project[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  
-  // Selection State
   const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(new Set());
   
-  // Collapsed Groups State
   const [collapsedGroups, setCollapsedGroups] = useState<Record<TaskStatus, boolean>>({
       [TaskStatus.TODO]: false,
       [TaskStatus.TEST]: false,
-      [TaskStatus.DONE]: true // Default collapsed
+      [TaskStatus.DONE]: true
   });
   
-  // Database Error State
   const [dbError, setDbError] = useState<string | null>(null);
-
-  // UI State
   const [viewMode, setViewMode] = useState<ViewMode>('LIST');
   const [newTaskTitle, setNewTaskTitle] = useState('');
   const [newTaskDesc, setNewTaskDesc] = useState('');
@@ -694,17 +662,30 @@ export default function App() {
   const [aiModalOpen, setAiModalOpen] = useState(false);
   const [aiPrompt, setAiPrompt] = useState('');
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [projectSelectorOpen, setProjectSelectorOpen] = useState(false);
   
-  // Refs
+  // Theme State
+  const [theme, setTheme] = useState<'dark' | 'light'>(() => {
+      return (localStorage.getItem('theme') as 'dark' | 'light') || 'dark';
+  });
+
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const projectSelectorRef = useRef<HTMLDivElement>(null);
   
-  // Drag State
   const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
-  
-  // Editing states
   const [editingProjectName, setEditingProjectName] = useState<string | null>(null);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const titleTextareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // --- Theme Effect ---
+  useEffect(() => {
+      if (theme === 'light') {
+          document.documentElement.classList.add('light');
+      } else {
+          document.documentElement.classList.remove('light');
+      }
+      localStorage.setItem('theme', theme);
+  }, [theme]);
 
   // --- Search Shortcut Effect ---
   useEffect(() => {
@@ -718,7 +699,17 @@ export default function App() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  // --- Auth Effect ---
+  // --- Click Outside Project Selector ---
+  useEffect(() => {
+      const handleClickOutside = (event: MouseEvent) => {
+          if (projectSelectorRef.current && !projectSelectorRef.current.contains(event.target as Node)) {
+              setProjectSelectorOpen(false);
+          }
+      };
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
   useEffect(() => {
     if (isFirebaseConfigured && auth) {
         const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
@@ -727,89 +718,53 @@ export default function App() {
         });
         return () => unsubscribe();
     } else {
-        // In local mode, we are ready immediately (user is null until login)
         setAuthLoading(false);
     }
   }, []);
 
-  // --- Selection Clear Effect ---
   useEffect(() => {
-    // Pulisci selezione quando cambi progetto o modalità
     setSelectedTaskIds(new Set());
     setSearchQuery('');
+    setProjectSelectorOpen(false);
   }, [activeProjectId, viewMode]);
 
-  // --- Data Sync (Hybrid: Local vs Firestore) ---
-  
-  // Projects Sync
   useEffect(() => {
-    if (!user) {
-        setProjects([]);
-        return;
-    }
-    
+    if (!user) { setProjects([]); return; }
     if (isFirebaseConfigured && db) {
         setDbError(null);
-        // FIRESTORE
         const q = query(collection(db, "projects"), where("userId", "==", user.uid));
-        const unsubscribe = onSnapshot(q, 
-          (snapshot) => {
+        const unsubscribe = onSnapshot(q, (snapshot) => {
             const projData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Project)).sort((a, b) => a.createdAt - b.createdAt);
             setProjects(projData);
-            if (projData.length > 0 && !activeProjectId) {
-                setActiveProjectId(projData[0].id);
-            } else if (projData.length === 0) {
-                setActiveProjectId(null);
-            }
-          },
-          (error) => {
-            console.error("Firestore Projects Error:", error);
-            if (error.code === 'permission-denied') {
-              setDbError("Permesso negato. Controlla le regole di sicurezza nel database Firebase.");
-            }
-          }
-        );
+            if (projData.length > 0 && !activeProjectId) setActiveProjectId(projData[0].id);
+        }, (error) => {
+            if (error.code === 'permission-denied') setDbError("Permesso negato. Controlla le regole di sicurezza.");
+        });
         return () => unsubscribe();
     } else {
-        // LOCAL STORAGE
         const saved = localStorage.getItem(`ft_projects_local`);
         if (saved) {
             const parsed = JSON.parse(saved) as Project[];
-            // Simple validation
             if (Array.isArray(parsed)) {
                 setProjects(parsed);
                 if (parsed.length > 0 && !activeProjectId) setActiveProjectId(parsed[0].id);
             }
         }
     }
-  }, [user, isFirebaseConfigured]); // removed activeProjectId dependency to avoid loops
+  }, [user, isFirebaseConfigured]);
 
-  // Tasks Sync
   useEffect(() => {
-    if (!user) {
-        setTasks([]);
-        return;
-    }
-
+    if (!user) { setTasks([]); return; }
     if (isFirebaseConfigured && db) {
-        // FIRESTORE
         const q = query(collection(db, "tasks"), where("userId", "==", user.uid));
-        const unsubscribe = onSnapshot(q, 
-          (snapshot) => {
+        const unsubscribe = onSnapshot(q, (snapshot) => {
             const taskData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Task));
             setTasks(taskData);
-          },
-          (error) => {
-             // Don't overwrite error if already set by projects
-             console.error("Firestore Tasks Error:", error);
-             if (error.code === 'permission-denied') {
-               setDbError((prev) => prev || "Permesso negato. Controlla le regole di sicurezza nel database Firebase.");
-             }
-          }
-        );
+        }, (error) => {
+             if (error.code === 'permission-denied') setDbError((prev) => prev || "Permesso negato.");
+        });
         return () => unsubscribe();
     } else {
-        // LOCAL STORAGE
         const saved = localStorage.getItem(`ft_tasks_local`);
         if (saved) {
             const parsed = JSON.parse(saved) as Task[];
@@ -818,7 +773,6 @@ export default function App() {
     }
   }, [user, isFirebaseConfigured]);
 
-  // --- Helper to Save Local ---
   const saveLocalProjects = (newProjects: Project[]) => {
       setProjects(newProjects);
       localStorage.setItem(`ft_projects_local`, JSON.stringify(newProjects));
@@ -828,40 +782,23 @@ export default function App() {
       localStorage.setItem(`ft_tasks_local`, JSON.stringify(newTasks));
   };
 
-  // --- Actions ---
-
   const handleMockLogin = () => {
-      // Create a fake user object
-      const fakeUser: any = {
-          uid: 'local-user',
-          email: 'local@demo.com',
-          displayName: 'Utente Locale'
-      };
+      const fakeUser: any = { uid: 'local-user', email: 'local@demo.com', displayName: 'Utente Locale' };
       setMockUser(fakeUser);
   };
 
   const handleLogout = () => {
-    if(isFirebaseConfigured && auth) {
-        signOut(auth);
-    } else {
-        setMockUser(null);
-    }
+    if(isFirebaseConfigured && auth) signOut(auth);
+    else setMockUser(null);
   };
 
   const addProject = async () => {
     if (!newProjectInput.trim() || !user) return;
-    const newProjData = {
-        userId: user.uid,
-        name: newProjectInput.trim(),
-        createdAt: Date.now()
-    };
+    const newProjData = { userId: user.uid, name: newProjectInput.trim(), createdAt: Date.now() };
 
     if (isFirebaseConfigured && db) {
-        try {
-            await addDoc(collection(db, "projects"), newProjData);
-        } catch (e) { console.error(e); }
+        try { await addDoc(collection(db, "projects"), newProjData); } catch (e) { console.error(e); }
     } else {
-        // Local
         const newProj: Project = { id: generateId(), ...newProjData };
         saveLocalProjects([...projects, newProj]);
         setActiveProjectId(newProj.id);
@@ -871,12 +808,8 @@ export default function App() {
 
   const renameProject = async (newName: string) => {
     if (!activeProjectId || !newName.trim()) return;
-    
     if (isFirebaseConfigured && db) {
-        try {
-            const projRef = doc(db, "projects", activeProjectId);
-            await updateDoc(projRef, { name: newName.trim() });
-        } catch (e) { console.error(e); }
+        try { await updateDoc(doc(db, "projects", activeProjectId), { name: newName.trim() }); } catch (e) { console.error(e); }
     } else {
         const updated = projects.map(p => p.id === activeProjectId ? { ...p, name: newName.trim() } : p);
         saveLocalProjects(updated);
@@ -885,8 +818,7 @@ export default function App() {
   };
 
   const deleteProject = async (projId: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    e.preventDefault();
+    e.stopPropagation(); e.preventDefault();
     if (!window.confirm('Sei sicuro? Questo eliminerà il progetto e TUTTI i suoi task.')) return;
 
     if (isFirebaseConfigured && db) {
@@ -899,8 +831,6 @@ export default function App() {
         const updatedProjs = projects.filter(p => p.id !== projId);
         saveLocalProjects(updatedProjs);
         if (activeProjectId === projId) setActiveProjectId(updatedProjs.length > 0 ? updatedProjs[0].id : null);
-        
-        // Delete related tasks
         const updatedTasks = tasks.filter(t => t.projectId !== projId);
         saveLocalTasks(updatedTasks);
     }
@@ -908,21 +838,12 @@ export default function App() {
 
   const addTask = async (title: string, desc: string) => {
     if (!activeProjectId || !title.trim() || !user) return;
-    
     const newTaskData = {
-        userId: user.uid,
-        projectId: activeProjectId,
-        title: title.trim(),
-        description: desc.trim(),
-        status: TaskStatus.TODO,
-        priority: TaskPriority.MEDIUM, // DEFAULT MEDIUM
-        createdAt: Date.now()
+        userId: user.uid, projectId: activeProjectId, title: title.trim(), description: desc.trim(),
+        status: TaskStatus.TODO, priority: TaskPriority.MEDIUM, createdAt: Date.now()
     };
-
     if (isFirebaseConfigured && db) {
-        try {
-             await addDoc(collection(db, "tasks"), newTaskData);
-        } catch(e) { console.error(e); }
+        try { await addDoc(collection(db, "tasks"), newTaskData); } catch(e) { console.error(e); }
     } else {
         const newTask: Task = { id: generateId(), ...newTaskData };
         saveLocalTasks([...tasks, newTask]);
@@ -931,10 +852,7 @@ export default function App() {
 
   const updateTask = async (taskId: string, updates: Partial<Task>) => {
     if (isFirebaseConfigured && db) {
-        try {
-            const taskRef = doc(db, "tasks", taskId);
-            await updateDoc(taskRef, updates);
-        } catch(e) { console.error(e); }
+        try { await updateDoc(doc(db, "tasks", taskId), updates); } catch(e) { console.error(e); }
     } else {
         const updated = tasks.map(t => t.id === taskId ? { ...t, ...updates } : t);
         saveLocalTasks(updated);
@@ -942,69 +860,58 @@ export default function App() {
   };
 
   const deleteTask = async (taskId: string) => {
-     // Soft delete
      await updateTask(taskId, { deletedAt: Date.now() });
-     // NOTA: Non gestiamo più la selezione qui per evitare loop in eliminazione massiva
   };
-
-  // --- Bulk Actions ---
 
   const toggleTaskSelection = (taskId: string) => {
       const newSet = new Set(selectedTaskIds);
-      if (newSet.has(taskId)) {
-          newSet.delete(taskId);
-      } else {
-          newSet.add(taskId);
-      }
+      if (newSet.has(taskId)) newSet.delete(taskId); else newSet.add(taskId);
       setSelectedTaskIds(newSet);
   };
 
   const handleBulkCopy = () => {
       const selectedTasks = tasks.filter(t => selectedTaskIds.has(t.id));
       if (selectedTasks.length === 0) return;
-
       const text = selectedTasks.map(t => {
-          // Concatena titolo e descrizione (pulita da newline)
           const desc = (t.description || '').replace(/[\r\n]+/g, ' ').trim();
-          // Formatta come lista puntata per ogni task
           return `- ${t.title} ${desc}`.trim();
       }).join('\n');
-
       navigator.clipboard.writeText(text);
-      alert(`${selectedTasks.length} task copiati negli appunti.`);
+      alert(`${selectedTasks.length} task copiati.`);
       setSelectedTaskIds(new Set());
   };
 
-  const handleBulkDelete = async () => {
-      if (!window.confirm(`Sei sicuro di voler eliminare ${selectedTaskIds.size} task?`)) return;
+  const handleBulkDelete = () => {
+      const count = selectedTaskIds.size;
+      if (count === 0) return;
       
-      const ids = Array.from(selectedTaskIds);
-      
-      if (isFirebaseConfigured && db) {
-          try {
-            // Batch delete for robustness in Firestore
-            const batch = writeBatch(db);
-            ids.forEach(id => {
-                const ref = doc(db!, "tasks", id);
-                batch.update(ref, { deletedAt: Date.now() }); // Soft delete via Batch
-            });
-            await batch.commit();
-          } catch(e) {
-              console.error("Bulk delete error", e);
-              alert("Errore durante l'eliminazione massiva.");
+      // Use setTimeout to allow the UI to register the click and clear any drag states
+      // before blocking with window.confirm
+      setTimeout(async () => {
+          if (!window.confirm(`Eliminare ${count} task?`)) return;
+          
+          const ids = Array.from(selectedTaskIds);
+          
+          if (isFirebaseConfigured && db) {
+              try {
+                const batch = writeBatch(db);
+                ids.forEach(id => {
+                    const ref = doc(db!, "tasks", id);
+                    batch.update(ref, { deletedAt: Date.now() });
+                });
+                await batch.commit();
+              } catch(e) { console.error(e); alert("Errore durante l'eliminazione."); }
+          } else {
+              // Ensure we create a new array reference for Local State
+              const updated = tasks.map(t => selectedTaskIds.has(t.id) ? { ...t, deletedAt: Date.now() } : t);
+              saveLocalTasks(updated);
           }
-      } else {
-          // Local - Efficient bulk update logic to prevent race conditions
-          const updated = tasks.map(t => selectedTaskIds.has(t.id) ? { ...t, deletedAt: Date.now() } : t);
-          saveLocalTasks(updated);
-      }
-      // Pulisci selezione SOLO alla fine
-      setSelectedTaskIds(new Set());
+          setSelectedTaskIds(new Set());
+      }, 50);
   };
 
   const handleBulkStatusChange = async (newStatus: TaskStatus) => {
       const ids = Array.from(selectedTaskIds);
-      
       if (isFirebaseConfigured && db) {
           const batch = writeBatch(db);
           ids.forEach(id => {
@@ -1018,7 +925,6 @@ export default function App() {
       }
       setSelectedTaskIds(new Set());
   };
-
 
   const handleQuickAdd = (e: React.FormEvent) => {
     e.preventDefault();
@@ -1036,44 +942,22 @@ export default function App() {
     setIsAiLoading(true);
     try {
       const generated = await generateTasksFromInput(String(aiPrompt), String(activeProjectId));
-      
       if (isFirebaseConfigured && db) {
           const promises = generated.map(t => addDoc(collection(db!, "tasks"), {
-            userId: user.uid,
-            projectId: activeProjectId || "",
-            title: t.title || "Untitled Task",
-            description: t.description || "",
-            status: TaskStatus.TODO,
-            priority: TaskPriority.MEDIUM, // Default MEDIUM
-            createdAt: Date.now()
+            userId: user.uid, projectId: activeProjectId || "", title: t.title || "Untitled", description: t.description || "",
+            status: TaskStatus.TODO, priority: TaskPriority.MEDIUM, createdAt: Date.now()
           }));
           await Promise.all(promises);
       } else {
-          // Local Generation
           const newTasks: Task[] = generated.map(t => ({
-             id: generateId(),
-             userId: user.uid,
-             projectId: activeProjectId || "",
-             title: t.title || "Untitled Task",
-             description: t.description || "",
-             status: TaskStatus.TODO,
-             priority: TaskPriority.MEDIUM, // Default MEDIUM
-             createdAt: Date.now()
+             id: generateId(), userId: user.uid, projectId: activeProjectId || "", title: t.title || "Untitled", description: t.description || "",
+             status: TaskStatus.TODO, priority: TaskPriority.MEDIUM, createdAt: Date.now()
           }));
           saveLocalTasks([...tasks, ...newTasks]);
       }
-      
-      setAiPrompt('');
-      setAiModalOpen(false);
-    } catch (error: any) {
-      console.error(error);
-      alert("Errore durante la generazione dei task.");
-    } finally {
-      setIsAiLoading(false);
-    }
+      setAiPrompt(''); setAiModalOpen(false);
+    } catch (error: any) { alert("Errore AI."); } finally { setIsAiLoading(false); }
   };
-
-  // --- UI Helpers ---
 
   useEffect(() => {
     if (titleTextareaRef.current) {
@@ -1085,16 +969,12 @@ export default function App() {
   const activeTasks = useMemo(() => {
     const priorityWeight = { [TaskPriority.HIGH]: 3, [TaskPriority.MEDIUM]: 2, [TaskPriority.LOW]: 1 };
     const query = searchQuery.trim().toLowerCase();
-
     return tasks
         .filter(t => {
             const matchesProject = t.projectId === activeProjectId && !t.deletedAt;
             if (!matchesProject) return false;
             if (!query) return true;
-            return (
-                t.title.toLowerCase().includes(query) || 
-                (t.description && t.description.toLowerCase().includes(query))
-            );
+            return (t.title.toLowerCase().includes(query) || (t.description && t.description.toLowerCase().includes(query)));
         })
         .sort((a, b) => {
             const pDiff = priorityWeight[b.priority] - priorityWeight[a.priority];
@@ -1107,18 +987,14 @@ export default function App() {
 
   const cycleStatus = (task: Task) => {
     const map: Record<TaskStatus, TaskStatus> = {
-      [TaskStatus.TODO]: TaskStatus.TEST,
-      [TaskStatus.TEST]: TaskStatus.DONE,
-      [TaskStatus.DONE]: TaskStatus.TODO
+      [TaskStatus.TODO]: TaskStatus.TEST, [TaskStatus.TEST]: TaskStatus.DONE, [TaskStatus.DONE]: TaskStatus.TODO
     };
     updateTask(task.id, { status: map[task.status] });
   };
 
   const cyclePriority = (task: Task) => {
     const map: Record<TaskPriority, TaskPriority> = {
-      [TaskPriority.LOW]: TaskPriority.MEDIUM,
-      [TaskPriority.MEDIUM]: TaskPriority.HIGH,
-      [TaskPriority.HIGH]: TaskPriority.LOW
+      [TaskPriority.LOW]: TaskPriority.MEDIUM, [TaskPriority.MEDIUM]: TaskPriority.HIGH, [TaskPriority.HIGH]: TaskPriority.LOW
     };
     updateTask(task.id, { priority: map[task.priority] });
   };
@@ -1129,13 +1005,6 @@ export default function App() {
     const { id, ...data } = editingTask;
     updateTask(id, data);
     setEditingTask(null);
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault(); 
-      document.getElementById('newTaskDesc')?.focus();
-    }
   };
 
   const onDragStart = (e: React.DragEvent, taskId: string) => {
@@ -1154,33 +1023,22 @@ export default function App() {
     }
   };
 
-  const toggleGroup = (status: TaskStatus) => {
-      setCollapsedGroups(prev => ({...prev, [status]: !prev[status]}));
-  };
-
-  // --- Rendering ---
-
-  if (authLoading) {
-    return <div className="flex items-center justify-center min-h-screen bg-background text-primary"><Loader2 className="animate-spin" size={48} /></div>;
-  }
-
-  if (!user) {
-    return <LoginScreen onMockLogin={handleMockLogin} />;
-  }
+  if (authLoading) return <div className="flex items-center justify-center min-h-screen bg-background text-primary"><Loader2 className="animate-spin" size={48} /></div>;
+  if (!user) return <LoginScreen onMockLogin={handleMockLogin} />;
 
   const renderKanbanColumn = (status: TaskStatus, title: string, colorClass: string, borderColorClass: string) => {
     const colTasks = activeTasks.filter(t => t.status === status);
     return (
       <div 
-        className="flex-1 min-w-[300px] flex flex-col h-full bg-slate-900/50 rounded-xl border border-slate-800/50 transition-colors"
+        className="flex-1 min-w-[300px] flex flex-col h-full bg-surface-hover/30 rounded-xl border border-border transition-colors"
         onDragOver={onDragOver}
         onDrop={(e) => onDrop(e, status)}
       >
-        <div className={`p-4 border-b ${borderColorClass} flex items-center justify-between sticky top-0 bg-slate-900/90 backdrop-blur-sm rounded-t-xl z-10`}>
+        <div className={`p-4 border-b border-border flex items-center justify-between sticky top-0 bg-background/90 backdrop-blur-sm rounded-t-xl z-10`}>
           <div className="flex items-center gap-2">
             <h3 className={`font-bold ${colorClass} text-sm uppercase tracking-wide`}>{title}</h3>
           </div>
-          <span className="text-xs font-mono text-slate-500 bg-slate-800 px-2 py-0.5 rounded-md">{colTasks.length}</span>
+          <span className="text-xs font-mono text-textMuted bg-surface px-2 py-0.5 rounded-md">{colTasks.length}</span>
         </div>
         <div className="p-3 overflow-y-auto flex-1 space-y-3 custom-scrollbar">
           {colTasks.map(task => (
@@ -1199,7 +1057,7 @@ export default function App() {
               onDragStart={onDragStart}
             />
           ))}
-          {colTasks.length === 0 && <div className="h-24 border-2 border-dashed border-slate-800 rounded-lg flex items-center justify-center text-slate-700 text-xs pointer-events-none">Trascina qui i task</div>}
+          {colTasks.length === 0 && <div className="h-24 border-2 border-dashed border-border rounded-lg flex items-center justify-center text-textMuted text-xs pointer-events-none">Trascina qui i task</div>}
         </div>
       </div>
     );
@@ -1207,9 +1065,9 @@ export default function App() {
 
   const renderListView = () => {
     const groups = [
-        { status: TaskStatus.TODO, label: 'DA FARE', color: 'text-slate-200', border: 'border-slate-600' },
-        { status: TaskStatus.TEST, label: 'DA TESTARE', color: 'text-orange-400', border: 'border-orange-700' },
-        { status: TaskStatus.DONE, label: 'COMPLETATO', color: 'text-green-400', border: 'border-green-700' }
+        { status: TaskStatus.TODO, label: 'DA FARE', color: 'text-textMain', border: 'border-textMuted' },
+        { status: TaskStatus.TEST, label: 'DA TESTARE', color: 'text-orange-500', border: 'border-orange-600' },
+        { status: TaskStatus.DONE, label: 'COMPLETATO', color: 'text-green-500', border: 'border-green-600' }
     ];
 
     return (
@@ -1217,22 +1075,15 @@ export default function App() {
         {groups.map(group => {
           const groupTasks = activeTasks.filter(t => t.status === group.status);
           const isCollapsed = collapsedGroups[group.status];
-          
           return (
-            <div 
-                key={group.status} 
-                onDragOver={onDragOver}
-                onDrop={(e) => onDrop(e, group.status)}
-                className="rounded-xl min-h-[50px]"
-            >
+            <div key={group.status} onDragOver={onDragOver} onDrop={(e) => onDrop(e, group.status)} className="rounded-xl min-h-[50px]">
               <h3 
-                onClick={() => toggleGroup(group.status)}
-                className={`text-sm font-bold ${group.color} uppercase tracking-wider mb-3 px-1 flex items-center gap-2 border-b ${group.border} pb-2 cursor-pointer hover:bg-slate-800/50 rounded-t transition-colors select-none`}
+                onClick={() => setCollapsedGroups(prev => ({...prev, [group.status]: !prev[group.status]}))}
+                className={`text-sm font-bold ${group.color} uppercase tracking-wider mb-3 px-1 flex items-center gap-2 border-b ${group.border} pb-2 cursor-pointer hover:bg-surface-hover rounded-t transition-colors select-none`}
               >
                  {isCollapsed ? <ChevronRight size={18} /> : <ChevronDown size={18} />}
-                 {group.label} <span className="bg-slate-800 text-slate-400 px-2 py-0.5 rounded-full text-[10px]">{groupTasks.length}</span>
+                 {group.label} <span className="bg-surface text-textMuted px-2 py-0.5 rounded-full text-[10px]">{groupTasks.length}</span>
               </h3>
-              
               {!isCollapsed && (
                   <div className="space-y-2 animate-in slide-in-from-top-2 duration-300">
                     {groupTasks.map(task => (
@@ -1251,7 +1102,7 @@ export default function App() {
                         onDragStart={onDragStart}
                       />
                     ))}
-                    {groupTasks.length === 0 && <div className="text-slate-600 text-xs italic p-4 text-center border border-dashed border-slate-800 rounded-lg">Nessun task in questa lista. Trascina qui per spostare.</div>}
+                    {groupTasks.length === 0 && <div className="text-textMuted text-xs italic p-4 text-center border border-dashed border-border rounded-lg">Nessun task in questa lista.</div>}
                   </div>
               )}
             </div>
@@ -1262,22 +1113,22 @@ export default function App() {
   };
 
   return (
-    <div className="flex h-screen overflow-hidden bg-background text-slate-200 font-sans selection:bg-primary/30">
+    <div className="flex h-screen overflow-hidden bg-background text-textMain font-sans selection:bg-primary/30 transition-colors duration-300">
       
       {/* Sidebar */}
-      <aside className={`${isSidebarOpen ? 'w-64' : 'w-0'} bg-slate-900 border-r border-slate-800 transition-all duration-300 flex flex-col overflow-hidden whitespace-nowrap z-20 absolute md:relative h-full shadow-xl`}>
-        <div className="p-4 border-b border-slate-800 flex items-center justify-between bg-slate-900 shrink-0">
-           <div className="font-bold text-lg tracking-tight text-white flex items-center gap-2">
+      <aside className={`${isSidebarOpen ? 'w-64' : 'w-0'} bg-surface border-r border-border transition-all duration-300 flex flex-col overflow-hidden whitespace-nowrap z-20 absolute md:relative h-full shadow-xl`}>
+        <div className="p-4 border-b border-border flex items-center justify-between bg-surface shrink-0">
+           <div className="font-bold text-lg tracking-tight text-textMain flex items-center gap-2">
              <div className="w-6 h-6 bg-gradient-to-br from-primary to-purple-600 rounded-md"></div>
              FastTrack
            </div>
-           <button onClick={() => setIsSidebarOpen(false)} className="text-slate-400 hover:text-white transition-colors">
+           <button onClick={() => setIsSidebarOpen(false)} className="text-textMuted hover:text-textMain transition-colors">
               <PanelLeftClose size={20}/>
            </button>
         </div>
         
         <div className="flex-1 overflow-y-auto p-3">
-          <div className="text-xs font-semibold text-slate-500 mb-2 px-2 flex justify-between items-center">
+          <div className="text-xs font-semibold text-textMuted mb-2 px-2 flex justify-between items-center">
             <span>PROGETTI</span>
             {projects.length === 0 && <span className="text-[10px] text-blue-400">Crea il primo!</span>}
           </div>
@@ -1286,7 +1137,7 @@ export default function App() {
               <div 
                 key={p.id}
                 onClick={() => { setActiveProjectId(p.id); if(window.innerWidth < 768) setIsSidebarOpen(false); }}
-                className={`group flex items-center justify-between px-3 py-2 rounded-lg cursor-pointer text-sm transition-colors ${activeProjectId === p.id ? 'bg-primary/10 text-primary border border-primary/20' : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200 border border-transparent'}`}
+                className={`group flex items-center justify-between px-3 py-2 rounded-lg cursor-pointer text-sm transition-colors ${activeProjectId === p.id ? 'bg-primary/10 text-primary border border-primary/20' : 'text-textMuted hover:bg-surface-hover hover:text-textMain border border-transparent'}`}
               >
                 <span className="truncate flex-1">{p.name}</span>
                 <button 
@@ -1301,41 +1152,48 @@ export default function App() {
           </div>
         </div>
 
-        <div className="p-3 border-t border-slate-800 bg-slate-900/50 shrink-0 space-y-3">
+        <div className="p-3 border-t border-border bg-surface-hover/20 shrink-0 space-y-3">
            <form onSubmit={(e) => { e.preventDefault(); addProject(); }} className="flex gap-2">
              <input 
                type="text" 
                placeholder="Nuovo Progetto..." 
                value={newProjectInput}
                onChange={(e) => setNewProjectInput(e.target.value)}
-               className="w-full bg-slate-800 border border-slate-700 rounded-md px-2 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-primary"
+               className="w-full bg-background border border-border rounded-md px-2 py-1.5 text-xs text-textMain placeholder-textMuted focus:outline-none focus:border-primary"
              />
-             <button type="submit" disabled={!newProjectInput.trim()} className="bg-slate-700 hover:bg-primary hover:text-white text-slate-300 p-1.5 rounded-md transition-colors disabled:opacity-50">
+             <button type="submit" disabled={!newProjectInput.trim()} className="bg-surface-hover hover:bg-primary hover:text-white text-textMain p-1.5 rounded-md transition-colors disabled:opacity-50">
                <Plus size={16} />
              </button>
            </form>
            
-           <div className="flex items-center justify-between pt-2 border-t border-slate-800/50">
+           <div className="flex items-center justify-between pt-2 border-t border-border">
              <div className="flex items-center gap-2 overflow-hidden">
-                <div className="w-6 h-6 rounded-full bg-slate-700 flex items-center justify-center text-[10px] font-bold text-white">
+                <div className="w-6 h-6 rounded-full bg-surface-hover flex items-center justify-center text-[10px] font-bold text-textMain border border-border">
                   {user.email ? user.email[0].toUpperCase() : <UserIcon size={12} />}
                 </div>
                 <div className="flex flex-col min-w-0">
-                    <span className="text-xs text-slate-400 truncate max-w-[100px]" title={user.email || ''}>{user.email}</span>
-                    {!isFirebaseConfigured && <span className="text-[9px] text-orange-400 font-bold uppercase">Modalità Locale</span>}
+                    <span className="text-xs text-textMuted truncate max-w-[100px]" title={user.email || ''}>{user.email}</span>
+                    {!isFirebaseConfigured && <span className="text-[9px] text-orange-500 font-bold uppercase">Locale</span>}
                 </div>
              </div>
              <div className="flex items-center">
                  <button 
+                    onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+                    className="text-textMuted hover:text-textMain p-1.5 rounded hover:bg-surface-hover transition-colors" 
+                    title={theme === 'dark' ? "Passa a Tema Chiaro" : "Passa a Tema Scuro"}
+                 >
+                    {theme === 'dark' ? <Sun size={14} /> : <Moon size={14} />}
+                 </button>
+                 <button 
                     onClick={() => setIsSettingsOpen(true)}
-                    className="text-slate-500 hover:text-white p-1.5 rounded hover:bg-slate-800 transition-colors" 
+                    className="text-textMuted hover:text-textMain p-1.5 rounded hover:bg-surface-hover transition-colors" 
                     title="Impostazioni"
                  >
                     <SettingsIcon size={14} />
                  </button>
                  <button 
                     onClick={handleLogout} 
-                    className="text-slate-500 hover:text-white p-1.5 rounded hover:bg-slate-800 transition-colors" 
+                    className="text-textMuted hover:text-textMain p-1.5 rounded hover:bg-surface-hover transition-colors" 
                     title="Logout"
                  >
                     <LogOut size={14} />
@@ -1348,67 +1206,68 @@ export default function App() {
       {/* Main Content */}
       <main className="flex-1 flex flex-col min-w-0 bg-background relative">
         
-        {/* Error Banner */}
         {dbError && (
-          <div className="bg-red-500/10 border-b border-red-500/20 px-4 py-2 flex items-center gap-3 text-red-400 text-xs font-medium animate-in slide-in-from-top-2">
+          <div className="bg-red-500/10 border-b border-red-500/20 px-4 py-2 flex items-center gap-3 text-red-500 text-xs font-medium animate-in slide-in-from-top-2">
             <ShieldAlert size={16} className="shrink-0" />
             <div className="flex-1">{dbError}</div>
           </div>
         )}
 
-        {/* Header */}
-        <header className="h-16 border-b border-slate-800 flex items-center justify-between px-4 bg-background/80 backdrop-blur-md sticky top-0 z-10 shrink-0 gap-4">
+        {/* Header - Z-30 to stay above Input Area */}
+        <header className="h-16 border-b border-border flex items-center justify-between px-4 bg-background/80 backdrop-blur-md sticky top-0 z-30 shrink-0 gap-4">
           <div className="flex items-center gap-3 flex-1 min-w-0">
             {!isSidebarOpen && (
-              <button onClick={() => setIsSidebarOpen(true)} className="p-2 text-slate-400 hover:bg-slate-800 rounded-lg">
+              <button onClick={() => setIsSidebarOpen(true)} className="p-2 text-textMuted hover:bg-surface-hover rounded-lg transition-colors">
                 <Menu size={20} />
               </button>
             )}
             
             {/* Project Switcher logic when sidebar is closed */}
             {!isSidebarOpen && projects.length > 0 ? (
-                <div className="relative group flex items-center gap-2">
-                    <div className="w-6 h-6 bg-gradient-to-br from-primary to-purple-600 rounded-md shrink-0"></div>
-                    <div className="relative">
-                        <select 
-                            value={activeProjectId || ''} 
-                            onChange={(e) => setActiveProjectId(e.target.value)}
-                            className="bg-transparent text-xl font-bold text-white appearance-none cursor-pointer outline-none w-full pr-6 max-w-[200px] truncate"
-                        >
+                <div className="relative" ref={projectSelectorRef}>
+                    <button 
+                        onClick={() => setProjectSelectorOpen(!projectSelectorOpen)}
+                        className="flex items-center gap-2 hover:bg-surface-hover p-2 rounded-lg transition-colors group"
+                    >
+                        <div className="w-6 h-6 bg-gradient-to-br from-primary to-purple-600 rounded-md shrink-0"></div>
+                        <h1 className="text-xl font-bold text-textMain truncate max-w-[200px]">
+                            {activeProject?.name || "Seleziona"}
+                        </h1>
+                        <ChevronDown size={16} className="text-textMuted group-hover:text-textMain" />
+                    </button>
+                    
+                    {projectSelectorOpen && (
+                        <div className="absolute top-full left-0 mt-2 w-64 bg-surface border border-border rounded-xl shadow-xl py-1 z-50 animate-in fade-in zoom-in-95">
+                            <div className="text-[10px] font-bold text-textMuted px-3 py-2 uppercase tracking-wider">I tuoi progetti</div>
                             {projects.map(p => (
-                                <option key={p.id} value={p.id} className="text-black bg-white">{p.name}</option>
+                                <button 
+                                    key={p.id}
+                                    onClick={() => { setActiveProjectId(p.id); setProjectSelectorOpen(false); }}
+                                    className={`w-full text-left px-3 py-2.5 text-sm hover:bg-surface-hover flex items-center justify-between ${activeProjectId === p.id ? 'text-primary font-medium bg-primary/5' : 'text-textMain'}`}
+                                >
+                                    <span className="truncate">{p.name}</span>
+                                    {activeProjectId === p.id && <Check size={14} />}
+                                </button>
                             ))}
-                        </select>
-                        <ChevronDown size={16} className="absolute right-0 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
-                    </div>
+                        </div>
+                    )}
                 </div>
             ) : (
-                // Normal view with editable title
                 activeProject && editingProjectName !== null ? (
-                   <form 
-                      className="flex-1 max-w-md flex gap-2"
-                      onSubmit={(e) => { e.preventDefault(); renameProject(editingProjectName); }}
-                   >
+                   <form className="flex-1 max-w-md" onSubmit={(e) => { e.preventDefault(); renameProject(editingProjectName); }}>
                      <input 
-                       autoFocus
-                       type="text" 
-                       value={editingProjectName} 
-                       onChange={(e) => setEditingProjectName(e.target.value)}
+                       autoFocus type="text" value={editingProjectName} onChange={(e) => setEditingProjectName(e.target.value)}
                        onBlur={() => renameProject(editingProjectName)}
-                       className="bg-slate-800 border border-primary rounded px-2 py-1 text-white font-bold text-lg w-full outline-none"
+                       className="bg-surface-hover border border-primary rounded px-2 py-1 text-textMain font-bold text-lg w-full outline-none"
                      />
                    </form>
                 ) : (
                   <div className="group flex items-center gap-3 overflow-hidden min-w-0">
-                    <h1 className="text-xl font-bold text-white truncate">
+                    <h1 className="text-xl font-bold text-textMain truncate">
                       {activeProject?.name || (projects.length > 0 ? "Seleziona un progetto" : "Crea un progetto")}
                     </h1>
                     {activeProject && (
-                      <button 
-                        onClick={() => setEditingProjectName(activeProject.name)}
-                        className="opacity-0 group-hover:opacity-100 p-1 text-slate-500 hover:text-primary transition-all shrink-0"
-                        title="Rinomina Progetto"
-                      >
+                      <button onClick={() => setEditingProjectName(activeProject.name)} className="opacity-0 group-hover:opacity-100 p-1 text-textMuted hover:text-primary transition-all shrink-0">
                         <Pencil size={16} />
                       </button>
                     )}
@@ -1419,62 +1278,38 @@ export default function App() {
 
           {activeProject && (
               <div className="relative flex-1 max-w-xs hidden sm:block">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-textMuted" size={16} />
                   <input 
                     ref={searchInputRef}
                     type="text"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     placeholder="Cerca task..."
-                    className="w-full bg-slate-900 border border-slate-700 rounded-lg pl-9 pr-12 py-1.5 text-sm text-slate-200 focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all placeholder:text-slate-600"
+                    className="w-full bg-surface border border-border rounded-lg pl-9 pr-12 py-1.5 text-sm text-textMain focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all placeholder:text-textMuted"
                   />
-                   {/* Shortcut Hint */}
                   <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1 pointer-events-none">
                      {!searchQuery ? (
-                         <span className="text-[10px] text-slate-600 border border-slate-700 rounded px-1.5 py-0.5 font-mono flex items-center gap-0.5">
-                            <Command size={8} /> K
-                         </span>
+                         <span className="text-[10px] text-textMuted border border-border rounded px-1.5 py-0.5 font-mono flex items-center gap-0.5"><Command size={8} /> K</span>
                      ) : (
-                        <button 
-                            onClick={() => setSearchQuery('')}
-                            className="text-slate-500 hover:text-white pointer-events-auto"
-                        >
-                            <X size={14} />
-                        </button>
+                        <button onClick={() => setSearchQuery('')} className="text-textMuted hover:text-textMain pointer-events-auto"><X size={14} /></button>
                      )}
                   </div>
               </div>
           )}
 
-          <div className="flex items-center gap-2 bg-slate-900 p-1 rounded-lg border border-slate-800 shrink-0 ml-2">
-            <button 
-              onClick={() => setViewMode('LIST')}
-              className={`p-1.5 rounded-md transition-all ${viewMode === 'LIST' ? 'bg-slate-700 text-white shadow-sm' : 'text-slate-500 hover:text-slate-300'}`}
-              title="Vista Lista"
-            >
-              <LayoutList size={18} />
-            </button>
-            <button 
-              onClick={() => setViewMode('KANBAN')}
-              className={`p-1.5 rounded-md transition-all ${viewMode === 'KANBAN' ? 'bg-slate-700 text-white shadow-sm' : 'text-slate-500 hover:text-slate-300'}`}
-              title="Vista Kanban"
-            >
-              <KanbanIcon size={18} />
-            </button>
+          <div className="flex items-center gap-2 bg-surface p-1 rounded-lg border border-border shrink-0 ml-2">
+            <button onClick={() => setViewMode('LIST')} className={`p-1.5 rounded-md transition-all ${viewMode === 'LIST' ? 'bg-surface-hover text-textMain shadow-sm' : 'text-textMuted hover:text-textMain'}`} title="Vista Lista"><LayoutList size={18} /></button>
+            <button onClick={() => setViewMode('KANBAN')} className={`p-1.5 rounded-md transition-all ${viewMode === 'KANBAN' ? 'bg-surface-hover text-textMain shadow-sm' : 'text-textMuted hover:text-textMain'}`} title="Vista Kanban"><KanbanIcon size={18} /></button>
           </div>
         </header>
 
-        {/* Mobile Search Bar (visible only on small screens) */}
         {activeProject && (
              <div className="sm:hidden px-4 pt-4 pb-0">
                 <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-textMuted" size={16} />
                     <input 
-                        type="text"
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        placeholder="Cerca task..."
-                        className="w-full bg-slate-900 border border-slate-700 rounded-lg pl-9 pr-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20"
+                        type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Cerca task..."
+                        className="w-full bg-surface border border-border rounded-lg pl-9 pr-3 py-2 text-sm text-textMain focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20"
                     />
                 </div>
              </div>
@@ -1483,16 +1318,16 @@ export default function App() {
         {/* Improved Input Area */}
         {activeProject && (
           <div className="p-4 md:p-6 pb-2 shrink-0 z-20">
-            <div className="max-w-5xl mx-auto relative bg-surface border border-slate-700 rounded-xl shadow-lg p-3">
+            <div className="max-w-5xl mx-auto relative bg-surface border border-border rounded-xl shadow-lg p-3">
               <form onSubmit={handleQuickAdd} className="flex flex-col gap-2">
                 <textarea
                   ref={titleTextareaRef}
                   value={newTaskTitle}
                   onChange={(e) => setNewTaskTitle(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  placeholder="Titolo Task (Enter per inviare)..."
+                  onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); document.getElementById('newTaskDesc')?.focus(); }}}
+                  placeholder="Titolo Task..."
                   rows={1}
-                  className="w-full bg-slate-900/50 border-b border-transparent focus:border-primary/50 rounded-t px-3 py-2 text-slate-100 placeholder-slate-400 focus:outline-none transition-all resize-none font-medium"
+                  className="w-full bg-surface-hover/30 border-b border-transparent focus:border-primary/50 rounded-t px-3 py-2 text-textMain placeholder-textMuted focus:outline-none transition-all resize-none font-medium"
                 />
                 
                 <div className="flex gap-2">
@@ -1500,146 +1335,84 @@ export default function App() {
                         id="newTaskDesc"
                         value={newTaskDesc}
                         onChange={(e) => setNewTaskDesc(e.target.value)}
-                        onKeyDown={(e) => {
-                             if (e.key === 'Enter' && e.shiftKey) { /* Allow newline */ } 
-                             else if (e.key === 'Enter') { e.preventDefault(); handleQuickAdd(e); }
-                        }}
-                        placeholder="Note aggiuntive (Shift+Enter per a capo)..."
+                        onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleQuickAdd(e); }}}
+                        placeholder="Note..."
                         rows={1}
-                        className="flex-1 bg-slate-900/30 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-300 placeholder-slate-600 focus:outline-none focus:border-slate-500 resize-none min-h-[38px]"
+                        className="flex-1 bg-surface-hover/30 border border-border rounded-lg px-3 py-2 text-sm text-textMain placeholder-textMuted focus:outline-none focus:border-border resize-none min-h-[38px]"
                     />
                     
-                    <button 
-                        type="button"
-                        onClick={() => setAiModalOpen(true)}
-                        className="px-3 py-2 text-purple-400 hover:bg-purple-500/10 rounded-lg transition-colors flex items-center gap-1 text-xs font-medium border border-slate-700 hover:border-purple-500/30"
-                        title="Genera con AI"
-                    >
-                        <Sparkles size={16} />
-                    </button>
-                    <button 
-                        type="submit" 
-                        disabled={!newTaskTitle.trim()}
-                        className="bg-primary hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition-colors disabled:opacity-50 disabled:hover:bg-primary shadow-md flex items-center justify-center"
-                    >
-                        <Plus size={20} />
-                    </button>
+                    <button type="button" onClick={() => setAiModalOpen(true)} className="px-3 py-2 text-purple-400 hover:bg-purple-500/10 rounded-lg transition-colors flex items-center gap-1 text-xs font-medium border border-border hover:border-purple-500/30" title="AI"><Sparkles size={16} /></button>
+                    <button type="submit" disabled={!newTaskTitle.trim()} className="bg-primary hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition-colors disabled:opacity-50 shadow-md flex items-center justify-center"><Plus size={20} /></button>
                 </div>
               </form>
             </div>
           </div>
         )}
 
-        {/* Content View */}
         <div className="flex-1 overflow-x-hidden overflow-y-auto p-4 md:p-6 custom-scrollbar pb-24">
-           {viewMode === 'LIST' ? (
-             renderListView()
-           ) : (
+           {viewMode === 'LIST' ? renderListView() : (
              <div className="h-full flex gap-4 overflow-x-auto pb-4 snap-x">
-               {renderKanbanColumn(TaskStatus.TODO, 'Da Fare', 'text-slate-300', 'border-slate-600')}
-               {renderKanbanColumn(TaskStatus.TEST, 'Da Testare', 'text-orange-400', 'border-orange-600')}
-               {renderKanbanColumn(TaskStatus.DONE, 'Completati', 'text-green-400', 'border-green-600')}
+               {renderKanbanColumn(TaskStatus.TODO, 'Da Fare', 'text-textMain', 'border-border')}
+               {renderKanbanColumn(TaskStatus.TEST, 'Da Testare', 'text-orange-500', 'border-orange-600')}
+               {renderKanbanColumn(TaskStatus.DONE, 'Completati', 'text-green-500', 'border-green-600')}
              </div>
            )}
         </div>
         
         {/* Bulk Action Bar */}
         {selectedTaskIds.size > 0 && (
-          // FIX CRITICO: Rimosso onMouseDown={(e) => e.stopPropagation()} da qui
-          // Altrimenti il click sui pulsanti figli non funziona correttamente in alcuni browser
-          <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-slate-900/90 backdrop-blur-md border border-slate-700 rounded-2xl shadow-2xl p-2 px-4 flex items-center gap-3 animate-in slide-in-from-bottom-6 z-40 max-w-[90vw] no-drag">
-              <div className="flex items-center gap-2 border-r border-slate-700 pr-3 mr-1">
-                  <div className="bg-primary text-white text-xs font-bold rounded-md w-6 h-6 flex items-center justify-center">
-                      {selectedTaskIds.size}
-                  </div>
-                  <span className="text-xs font-medium text-slate-300 hidden sm:inline">Selezionati</span>
+          <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-surface/90 backdrop-blur-md border border-border rounded-2xl shadow-2xl p-2 px-4 flex items-center gap-3 animate-in slide-in-from-bottom-6 z-40 max-w-[90vw] no-drag">
+              <div className="flex items-center gap-2 border-r border-border pr-3 mr-1">
+                  <div className="bg-primary text-white text-xs font-bold rounded-md w-6 h-6 flex items-center justify-center">{selectedTaskIds.size}</div>
+                  <span className="text-xs font-medium text-textMuted hidden sm:inline">Selezionati</span>
               </div>
 
-              <button 
-                  onClick={handleBulkCopy}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-300 hover:bg-slate-800 rounded-lg transition-colors"
-                  title="Copia lista titoli (per Excel/Chat)"
-              >
-                  <Copy size={14} />
-                  <span className="hidden sm:inline">Copia</span>
+              <button onClick={handleBulkCopy} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-textMain hover:bg-surface-hover rounded-lg transition-colors">
+                  <Copy size={14} /> <span className="hidden sm:inline">Copia</span>
               </button>
 
-              <div className="h-6 w-px bg-slate-700/50"></div>
+              <div className="h-6 w-px bg-border"></div>
 
               <div className="relative group">
-                  <button className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-300 hover:bg-slate-800 rounded-lg transition-colors">
-                      <ListTodo size={14} />
-                      <span className="hidden sm:inline">Stato</span>
-                      <ChevronUp size={12} className="text-slate-500" />
+                  <button className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-textMain hover:bg-surface-hover rounded-lg transition-colors">
+                      <ListTodo size={14} /> <span className="hidden sm:inline">Stato</span> <ChevronUp size={12} className="text-textMuted" />
                   </button>
-                  <div className="absolute bottom-full left-0 mb-2 w-32 bg-slate-900 border border-slate-700 rounded-lg shadow-xl overflow-hidden hidden group-hover:block animate-in fade-in zoom-in-95">
-                      <button onClick={() => handleBulkStatusChange(TaskStatus.TODO)} className="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 flex items-center gap-2"><Circle size={10}/> Da Fare</button>
-                      <button onClick={() => handleBulkStatusChange(TaskStatus.TEST)} className="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-orange-400 flex items-center gap-2"><Clock size={10}/> Test</button>
-                      <button onClick={() => handleBulkStatusChange(TaskStatus.DONE)} className="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-green-400 flex items-center gap-2"><CheckCircle2 size={10}/> Fatto</button>
+                  <div className="absolute bottom-full left-0 mb-2 w-32 bg-surface border border-border rounded-lg shadow-xl overflow-hidden hidden group-hover:block animate-in fade-in zoom-in-95">
+                      <button onClick={() => handleBulkStatusChange(TaskStatus.TODO)} className="w-full text-left px-3 py-2 text-xs hover:bg-surface-hover text-textMain flex items-center gap-2"><Circle size={10}/> Da Fare</button>
+                      <button onClick={() => handleBulkStatusChange(TaskStatus.TEST)} className="w-full text-left px-3 py-2 text-xs hover:bg-surface-hover text-orange-500 flex items-center gap-2"><Clock size={10}/> Test</button>
+                      <button onClick={() => handleBulkStatusChange(TaskStatus.DONE)} className="w-full text-left px-3 py-2 text-xs hover:bg-surface-hover text-green-500 flex items-center gap-2"><CheckCircle2 size={10}/> Fatto</button>
                   </div>
               </div>
 
-              <div className="h-6 w-px bg-slate-700/50"></div>
+              <div className="h-6 w-px bg-border"></div>
 
               <button 
                   type="button"
-                  // CRITICAL FIX: Stop propagation to prevent drag events or losing focus
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    handleBulkDelete();
-                  }}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
+                  onClick={handleBulkDelete}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-red-500 hover:bg-red-500/10 rounded-lg transition-colors"
               >
-                  <Trash2 size={14} />
-                  <span className="hidden sm:inline">Elimina</span>
+                  <Trash2 size={14} /> <span className="hidden sm:inline">Elimina</span>
               </button>
               
-              <button 
-                onClick={() => setSelectedTaskIds(new Set())}
-                className="ml-2 text-slate-500 hover:text-white"
-              >
-                  <X size={16} />
-              </button>
+              <button onClick={() => setSelectedTaskIds(new Set())} className="ml-2 text-textMuted hover:text-textMain"><X size={16} /></button>
           </div>
         )}
 
-        {/* Modals */}
-        <FirebaseConfigModal 
-            isOpen={isSettingsOpen} 
-            onClose={() => setIsSettingsOpen(false)} 
-            onSave={saveConfig} 
-        />
+        <FirebaseConfigModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} onSave={saveConfig} />
 
         {aiModalOpen && (
           <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-lg shadow-2xl animate-fade-in">
-              <div className="p-5 border-b border-slate-800 flex justify-between items-center">
-                 <h2 className="text-lg font-bold text-white flex items-center gap-2">
-                   <Sparkles size={20} className="text-purple-500" />
-                   Assistente AI
-                 </h2>
-                 <button onClick={() => setAiModalOpen(false)} className="text-slate-400 hover:text-white"><X size={20}/></button>
+            <div className="bg-surface border border-border rounded-2xl w-full max-w-lg shadow-2xl animate-fade-in">
+              <div className="p-5 border-b border-border flex justify-between items-center">
+                 <h2 className="text-lg font-bold text-textMain flex items-center gap-2"><Sparkles size={20} className="text-purple-500" />Assistente AI</h2>
+                 <button onClick={() => setAiModalOpen(false)} className="text-textMuted hover:text-textMain"><X size={20}/></button>
               </div>
               <div className="p-5">
-                <p className="text-slate-400 text-sm mb-4">
-                  Descrivi cosa vuoi realizzare (es. "Voglio una landing page con form di contatto e footer") e l'AI genererà i task necessari.
-                </p>
-                <textarea
-                  value={aiPrompt}
-                  onChange={(e) => setAiPrompt(e.target.value)}
-                  placeholder="Descrivi il tuo obiettivo qui..."
-                  className="w-full h-32 bg-slate-950 border border-slate-700 rounded-xl p-3 text-slate-200 focus:outline-none focus:border-purple-500 resize-none text-sm"
-                ></textarea>
+                <p className="text-textMuted text-sm mb-4">Descrivi cosa vuoi realizzare e l'AI genererà i task.</p>
+                <textarea value={aiPrompt} onChange={(e) => setAiPrompt(e.target.value)} placeholder="Es: Landing page con form contatti..." className="w-full h-32 bg-background border border-border rounded-xl p-3 text-textMain focus:outline-none focus:border-purple-500 resize-none text-sm"></textarea>
                 <div className="mt-4 flex justify-end gap-3">
-                  <button onClick={() => setAiModalOpen(false)} className="px-4 py-2 text-sm text-slate-400 hover:text-white transition-colors">Annulla</button>
-                  <button 
-                    onClick={generateAiTasks}
-                    disabled={isAiLoading || !aiPrompt.trim()}
-                    className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-sm font-medium rounded-lg flex items-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {isAiLoading ? <><Loader2 className="animate-spin" size={16} />Generazione...</> : <><Sparkles size={16} />Genera Task</>}
-                  </button>
+                  <button onClick={() => setAiModalOpen(false)} className="px-4 py-2 text-sm text-textMuted hover:text-textMain transition-colors">Annulla</button>
+                  <button onClick={generateAiTasks} disabled={isAiLoading || !aiPrompt.trim()} className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-sm font-medium rounded-lg flex items-center gap-2 transition-all disabled:opacity-50">{isAiLoading ? <><Loader2 className="animate-spin" size={16} />...</> : <><Sparkles size={16} />Genera</>}</button>
                 </div>
               </div>
             </div>
@@ -1648,60 +1421,38 @@ export default function App() {
 
         {editingTask && (
           <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-             <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-lg shadow-2xl flex flex-col max-h-[90vh]">
-                <div className="p-4 border-b border-slate-800 flex justify-between items-center">
-                  <h3 className="font-bold text-white">Modifica Task Completo</h3>
-                  <button onClick={() => setEditingTask(null)} className="text-slate-400 hover:text-white"><X size={20}/></button>
+             <div className="bg-surface border border-border rounded-2xl w-full max-w-lg shadow-2xl flex flex-col max-h-[90vh]">
+                <div className="p-4 border-b border-border flex justify-between items-center">
+                  <h3 className="font-bold text-textMain">Modifica Task</h3>
+                  <button onClick={() => setEditingTask(null)} className="text-textMuted hover:text-textMain"><X size={20}/></button>
                 </div>
                 <div className="p-4 overflow-y-auto flex-1 custom-scrollbar">
                    <form id="editTaskForm" onSubmit={saveEditedTask} className="space-y-4">
                       <div>
-                        <label className="block text-xs font-semibold text-slate-500 mb-1">TITOLO TASK</label>
-                        <textarea 
-                          value={editingTask.title}
-                          onChange={(e) => setEditingTask({...editingTask, title: e.target.value})}
-                          className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-slate-200 focus:outline-none focus:border-primary min-h-[60px] resize-y"
-                          placeholder="Titolo..."
-                        />
+                        <label className="block text-xs font-semibold text-textMuted mb-1">TITOLO</label>
+                        <textarea value={editingTask.title} onChange={(e) => setEditingTask({...editingTask, title: e.target.value})} className="w-full bg-background border border-border rounded-lg p-3 text-textMain focus:outline-none focus:border-primary min-h-[60px] resize-y" />
                       </div>
                       <div>
-                        <label className="block text-xs font-semibold text-slate-500 mb-1">NOTE AGGIUNTIVE</label>
-                        <textarea 
-                          value={editingTask.description || ''}
-                          onChange={(e) => setEditingTask({...editingTask, description: e.target.value})}
-                          className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-slate-200 focus:outline-none focus:border-primary min-h-[120px] resize-y"
-                          placeholder="Dettagli tecnici..."
-                        />
+                        <label className="block text-xs font-semibold text-textMuted mb-1">NOTE</label>
+                        <textarea value={editingTask.description || ''} onChange={(e) => setEditingTask({...editingTask, description: e.target.value})} className="w-full bg-background border border-border rounded-lg p-3 text-textMain focus:outline-none focus:border-primary min-h-[120px] resize-y" />
                       </div>
                       <div className="grid grid-cols-2 gap-4">
                           <div>
-                            <label className="block text-xs font-semibold text-slate-500 mb-1">STATO</label>
+                            <label className="block text-xs font-semibold text-textMuted mb-1">STATO</label>
                             <div className="flex flex-col gap-2">
                             {[TaskStatus.TODO, TaskStatus.TEST, TaskStatus.DONE].map(status => (
-                                <button
-                                    type="button"
-                                    key={status}
-                                    onClick={() => setEditingTask({...editingTask, status})}
-                                    className={`px-3 py-2 rounded-lg text-xs font-medium border text-left transition-all flex items-center justify-between ${editingTask.status === status ? 'bg-primary/20 border-primary text-primary' : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700'}`}
-                                >
-                                    {status}
-                                    {editingTask.status === status && <CheckCircle2 size={14}/>}
+                                <button type="button" key={status} onClick={() => setEditingTask({...editingTask, status})} className={`px-3 py-2 rounded-lg text-xs font-medium border text-left transition-all flex items-center justify-between ${editingTask.status === status ? 'bg-primary/20 border-primary text-primary' : 'bg-surface-hover border-border text-textMuted hover:bg-surface-hover'}`}>
+                                    {status} {editingTask.status === status && <CheckCircle2 size={14}/>}
                                 </button>
                             ))}
                             </div>
                           </div>
                           <div>
-                            <label className="block text-xs font-semibold text-slate-500 mb-1">PRIORITÀ</label>
+                            <label className="block text-xs font-semibold text-textMuted mb-1">PRIORITÀ</label>
                             <div className="flex flex-col gap-2">
                             {[TaskPriority.LOW, TaskPriority.MEDIUM, TaskPriority.HIGH].map(p => (
-                                <button
-                                    type="button"
-                                    key={p}
-                                    onClick={() => setEditingTask({...editingTask, priority: p})}
-                                    className={`px-3 py-2 rounded-lg text-xs font-medium border text-left transition-all flex items-center justify-between ${editingTask.priority === p ? 'bg-slate-700 border-slate-500 text-white' : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700'}`}
-                                >
-                                    {p}
-                                    {editingTask.priority === p && <CheckCircle2 size={14}/>}
+                                <button type="button" key={p} onClick={() => setEditingTask({...editingTask, priority: p})} className={`px-3 py-2 rounded-lg text-xs font-medium border text-left transition-all flex items-center justify-between ${editingTask.priority === p ? 'bg-surface-hover border-textMuted text-textMain' : 'bg-surface-hover border-border text-textMuted hover:bg-surface-hover'}`}>
+                                    {p} {editingTask.priority === p && <CheckCircle2 size={14}/>}
                                 </button>
                             ))}
                             </div>
@@ -1709,15 +1460,9 @@ export default function App() {
                       </div>
                    </form>
                 </div>
-                <div className="p-4 border-t border-slate-800 flex justify-end gap-3 bg-slate-900 rounded-b-2xl">
-                   <button type="button" onClick={() => setEditingTask(null)} className="px-4 py-2 text-sm text-slate-400 hover:text-white">Annulla</button>
-                   <button 
-                     form="editTaskForm"
-                     type="submit" 
-                     className="bg-primary hover:bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2"
-                   >
-                     <Save size={16} /> Salva Modifiche
-                   </button>
+                <div className="p-4 border-t border-border flex justify-end gap-3 bg-surface rounded-b-2xl">
+                   <button type="button" onClick={() => setEditingTask(null)} className="px-4 py-2 text-sm text-textMuted hover:text-textMain">Annulla</button>
+                   <button form="editTaskForm" type="submit" className="bg-primary hover:bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2"><Save size={16} /> Salva</button>
                 </div>
              </div>
           </div>
