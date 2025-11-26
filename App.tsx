@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import ReactDOM from 'react-dom/client';
 import { 
   Plus, 
   LayoutList, 
@@ -838,7 +839,7 @@ export default function App() {
         } catch (e) { console.error(e); }
     } else {
         // Local
-        const newProj: Project = { id: crypto.randomUUID(), ...newProjData };
+        const newProj: Project = { id: crypto.randomUUID() as string, ...newProjData };
         saveLocalProjects([...projects, newProj]);
         setActiveProjectId(newProj.id);
     }
@@ -900,7 +901,7 @@ export default function App() {
              await addDoc(collection(db, "tasks"), newTaskData);
         } catch(e) { console.error(e); }
     } else {
-        const newTask: Task = { id: crypto.randomUUID(), ...newTaskData };
+        const newTask: Task = { id: crypto.randomUUID() as string, ...newTaskData };
         saveLocalTasks([...tasks, newTask]);
     }
   };
@@ -920,10 +921,7 @@ export default function App() {
   const deleteTask = async (taskId: string) => {
      // Soft delete
      await updateTask(taskId, { deletedAt: Date.now() });
-     // Remove from selection if present
-     if (selectedTaskIds.has(taskId)) {
-         toggleTaskSelection(taskId);
-     }
+     // NOTA: Non gestiamo più la selezione qui per evitare loop in eliminazione massiva
   };
 
   // --- Bulk Actions ---
@@ -942,7 +940,13 @@ export default function App() {
       const selectedTasks = tasks.filter(t => selectedTaskIds.has(t.id));
       if (selectedTasks.length === 0) return;
 
-      const text = selectedTasks.map(t => t.title).join('\n');
+      const text = selectedTasks.map(t => {
+          // Concatena titolo e descrizione (pulita da newline)
+          const desc = (t.description || '').replace(/[\r\n]+/g, ' ').trim();
+          // Formatta come lista puntata per ogni task
+          return `- ${t.title} ${desc}`.trim();
+      }).join('\n');
+
       navigator.clipboard.writeText(text);
       alert(`${selectedTasks.length} task copiati negli appunti.`);
       setSelectedTaskIds(new Set());
@@ -955,12 +959,15 @@ export default function App() {
       
       if (isFirebaseConfigured && db) {
           // Batch non sempre supporta troppe operazioni, meglio loop per soft delete
-          ids.forEach(id => deleteTask(id));
+          // Promise.all per gestire le operazioni asincrone in parallelo
+          const promises = ids.map(id => deleteTask(id));
+          await Promise.all(promises);
       } else {
           // Local
           const updated = tasks.map(t => selectedTaskIds.has(t.id) ? { ...t, deletedAt: Date.now() } : t);
           saveLocalTasks(updated);
       }
+      // Pulisci selezione SOLO alla fine
       setSelectedTaskIds(new Set());
   };
 
@@ -997,7 +1004,7 @@ export default function App() {
     if (!activeProjectId || !aiPrompt.trim() || !user) return;
     setIsAiLoading(true);
     try {
-      const generated = await generateTasksFromInput(aiPrompt, activeProjectId);
+      const generated = await generateTasksFromInput(aiPrompt as string, activeProjectId as string);
       
       if (isFirebaseConfigured && db) {
           const promises = generated.map(t => addDoc(collection(db!, "tasks"), {
@@ -1327,35 +1334,55 @@ export default function App() {
               </button>
             )}
             
-            {activeProject && editingProjectName !== null ? (
-               <form 
-                  className="flex-1 max-w-md flex gap-2"
-                  onSubmit={(e) => { e.preventDefault(); renameProject(editingProjectName); }}
-               >
-                 <input 
-                   autoFocus
-                   type="text" 
-                   value={editingProjectName} 
-                   onChange={(e) => setEditingProjectName(e.target.value)}
-                   onBlur={() => renameProject(editingProjectName)}
-                   className="bg-slate-800 border border-primary rounded px-2 py-1 text-white font-bold text-lg w-full outline-none"
-                 />
-               </form>
+            {/* Project Switcher logic when sidebar is closed */}
+            {!isSidebarOpen && projects.length > 0 ? (
+                <div className="relative group flex items-center gap-2">
+                    <div className="w-6 h-6 bg-gradient-to-br from-primary to-purple-600 rounded-md shrink-0"></div>
+                    <div className="relative">
+                        <select 
+                            value={activeProjectId || ''} 
+                            onChange={(e) => setActiveProjectId(e.target.value)}
+                            className="bg-transparent text-xl font-bold text-white appearance-none cursor-pointer outline-none w-full pr-6 max-w-[200px] truncate"
+                        >
+                            {projects.map(p => (
+                                <option key={p.id} value={p.id} className="text-black bg-white">{p.name}</option>
+                            ))}
+                        </select>
+                        <ChevronDown size={16} className="absolute right-0 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
+                    </div>
+                </div>
             ) : (
-              <div className="group flex items-center gap-3 overflow-hidden min-w-0">
-                <h1 className="text-xl font-bold text-white truncate">
-                  {activeProject?.name || (projects.length > 0 ? "Seleziona un progetto" : "Crea un progetto")}
-                </h1>
-                {activeProject && (
-                  <button 
-                    onClick={() => setEditingProjectName(activeProject.name)}
-                    className="opacity-0 group-hover:opacity-100 p-1 text-slate-500 hover:text-primary transition-all shrink-0"
-                    title="Rinomina Progetto"
-                  >
-                    <Pencil size={16} />
-                  </button>
-                )}
-              </div>
+                // Normal view with editable title
+                activeProject && editingProjectName !== null ? (
+                   <form 
+                      className="flex-1 max-w-md flex gap-2"
+                      onSubmit={(e) => { e.preventDefault(); renameProject(editingProjectName); }}
+                   >
+                     <input 
+                       autoFocus
+                       type="text" 
+                       value={editingProjectName} 
+                       onChange={(e) => setEditingProjectName(e.target.value)}
+                       onBlur={() => renameProject(editingProjectName)}
+                       className="bg-slate-800 border border-primary rounded px-2 py-1 text-white font-bold text-lg w-full outline-none"
+                     />
+                   </form>
+                ) : (
+                  <div className="group flex items-center gap-3 overflow-hidden min-w-0">
+                    <h1 className="text-xl font-bold text-white truncate">
+                      {activeProject?.name || (projects.length > 0 ? "Seleziona un progetto" : "Crea un progetto")}
+                    </h1>
+                    {activeProject && (
+                      <button 
+                        onClick={() => setEditingProjectName(activeProject.name)}
+                        className="opacity-0 group-hover:opacity-100 p-1 text-slate-500 hover:text-primary transition-all shrink-0"
+                        title="Rinomina Progetto"
+                      >
+                        <Pencil size={16} />
+                      </button>
+                    )}
+                  </div>
+                )
             )}
           </div>
 

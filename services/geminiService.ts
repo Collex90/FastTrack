@@ -1,10 +1,9 @@
 import { GoogleGenAI, Type } from "@google/genai";
-import { Task } from "../types";
+import { Task, TaskStatus } from "../types";
 
 export const generateTasksFromInput = async (input: string, projectId: string): Promise<Partial<Task>[]> => {
   try {
-    // Check safe per l'environment
-    const apiKey = typeof process !== 'undefined' ? process.env.API_KEY : '';
+    const apiKey = process.env.API_KEY;
     
     if (!apiKey) {
       console.warn("API Key Gemini non trovata. La generazione AI non funzionerà.");
@@ -48,7 +47,7 @@ export const generateTasksFromInput = async (input: string, projectId: string): 
         projectId,
         title: item.title,
         description: item.description,
-        status: "TO DO" as any // Default status
+        status: TaskStatus.TODO
       }));
     }
     return [];
