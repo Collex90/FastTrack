@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import ReactDOM from 'react-dom/client';
 import { 
@@ -76,7 +75,7 @@ import {
 // Helper for ID generation to avoid crypto type issues
 const generateId = () => {
     if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-        return crypto.randomUUID();
+        return crypto.randomUUID() as string;
     }
     return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
 };
@@ -321,7 +320,7 @@ const TaskItem: React.FC<TaskItemProps> = ({
             onClick={(e) => { e.stopPropagation(); onToggleSelection(); }}
             onPointerDown={(e) => e.stopPropagation()}
             onMouseDown={(e) => e.stopPropagation()}
-            className={`mr-2.5 mt-0.5 cursor-pointer transition-colors no-drag ${isSelected ? 'text-primary' : 'text-slate-600 hover:text-slate-400'}`}
+            className={`mr-3 mt-1 cursor-pointer transition-colors no-drag shrink-0 ${isSelected ? 'text-primary' : 'text-slate-600 hover:text-slate-400'}`}
          >
              {isSelected ? <CheckSquare size={16} /> : <Square size={16} />}
          </div>
@@ -331,7 +330,7 @@ const TaskItem: React.FC<TaskItemProps> = ({
             text={task.title} 
             isDone={task.status === TaskStatus.DONE} 
             onSave={(val) => onUpdateTitle(task, val)} 
-            className="text-sm font-medium leading-tight"
+            className="text-sm font-medium leading-normal py-0.5"
             />
             {viewMode === 'LIST' && task.description && (
             <CollapsibleDescription 
@@ -349,7 +348,7 @@ const TaskItem: React.FC<TaskItemProps> = ({
          </div>
       </div>
 
-      <div className={`flex items-center justify-between ${viewMode === 'LIST' ? 'gap-3 mt-1 md:mt-0 md:self-start' : 'w-full pt-1.5 border-t border-slate-700/50 mt-1'}`}
+      <div className={`flex items-center justify-between shrink-0 ${viewMode === 'LIST' ? 'gap-3 mt-2 md:mt-0.5 md:self-start md:ml-4' : 'w-full pt-2 border-t border-slate-700/50 mt-1.5'}`}
         // Stop propagation on action bar to prevent drag start from empty spaces in toolbar
         onMouseDown={(e) => e.stopPropagation()}
       >
@@ -361,21 +360,21 @@ const TaskItem: React.FC<TaskItemProps> = ({
         <div className={`flex items-center gap-1 transition-opacity no-drag`}>
           <button 
               onClick={handleCopy}
-              className="p-1 text-slate-500 hover:text-green-400 hover:bg-slate-700 rounded transition-colors"
+              className="p-1 text-slate-500 hover:text-green-400 hover:bg-slate-700 rounded transition-colors flex items-center justify-center"
               title="Copia Titolo e Note (Inline)"
           >
               {isCopied ? <Check size={13} className="text-green-500" /> : <Copy size={13} />}
           </button>
           <button 
               onClick={() => onEdit(task)}
-              className="p-1 text-slate-500 hover:text-primary hover:bg-slate-700 rounded transition-colors"
+              className="p-1 text-slate-500 hover:text-primary hover:bg-slate-700 rounded transition-colors flex items-center justify-center"
               title="Modifica dettaglio"
           >
               <Pencil size={13} />
           </button>
           <button 
               onClick={(e) => { e.stopPropagation(); onDelete(task.id); }} 
-              className="p-1 text-slate-500 hover:text-red-400 hover:bg-slate-700 rounded transition-colors"
+              className="p-1 text-slate-500 hover:text-red-400 hover:bg-slate-700 rounded transition-colors flex items-center justify-center"
               title="Elimina"
           >
               <Trash2 size={13} />
@@ -1910,10 +1909,13 @@ export default function App() {
                       <span className="hidden sm:inline">Stato</span>
                       <ChevronUp size={12} className="text-slate-500" />
                   </button>
-                  <div className="absolute bottom-full left-0 mb-2 w-32 bg-slate-900 border border-slate-700 rounded-lg shadow-xl overflow-hidden hidden group-hover:block animate-in fade-in zoom-in-95">
-                      <button onClick={() => handleBulkStatusChange(TaskStatus.TODO)} className="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 flex items-center gap-2"><Circle size={10}/> Da Fare</button>
-                      <button onClick={() => handleBulkStatusChange(TaskStatus.TEST)} className="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-orange-400 flex items-center gap-2"><Clock size={10}/> Test</button>
-                      <button onClick={() => handleBulkStatusChange(TaskStatus.DONE)} className="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-green-400 flex items-center gap-2"><CheckCircle2 size={10}/> Fatto</button>
+                  {/* WRAPPER con padding-bottom per fare da ponte tra bottone e menu */}
+                  <div className="absolute bottom-full left-0 pb-2 w-32 hidden group-hover:block animate-in fade-in zoom-in-95 z-50">
+                      <div className="bg-surface border border-slate-700 rounded-lg shadow-xl overflow-hidden">
+                        <button onClick={() => handleBulkStatusChange(TaskStatus.TODO)} className="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 flex items-center gap-2"><Circle size={10}/> Da Fare</button>
+                        <button onClick={() => handleBulkStatusChange(TaskStatus.TEST)} className="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-orange-400 flex items-center gap-2"><Clock size={10}/> Test</button>
+                        <button onClick={() => handleBulkStatusChange(TaskStatus.DONE)} className="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-green-400 flex items-center gap-2"><CheckCircle2 size={10}/> Fatto</button>
+                      </div>
                   </div>
               </div>
 
