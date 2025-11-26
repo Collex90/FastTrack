@@ -10,7 +10,7 @@ export const generateTasksFromInput = async (input: string, projectId: string): 
       return [];
     }
 
-    const ai = new GoogleGenAI({ apiKey });
+    const ai = new GoogleGenAI({ apiKey: apiKey as string });
 
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash",

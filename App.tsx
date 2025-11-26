@@ -64,6 +64,16 @@ import {
   writeBatch
 } from 'firebase/firestore';
 
+// --- Helpers ---
+
+// Helper for ID generation to avoid crypto type issues
+const generateId = () => {
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+        return crypto.randomUUID();
+    }
+    return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+};
+
 // --- Components ---
 
 const PriorityBadge = ({ priority, onClick }: { priority: TaskPriority; onClick?: () => void }) => {
@@ -82,7 +92,7 @@ const PriorityBadge = ({ priority, onClick }: { priority: TaskPriority; onClick?
   return (
     <button
       onClick={(e) => { e.stopPropagation(); onClick && onClick(); }}
-      className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-bold transition-all ${styles[priority]}`}
+      className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-bold transition-all ${styles[priority]} no-drag`}
       title={`Priorità: ${priority}`}
     >
       {icons[priority]}
@@ -107,7 +117,7 @@ const StatusBadge = ({ status, onClick }: { status: TaskStatus; onClick?: () => 
   return (
     <button
       onClick={(e) => { e.stopPropagation(); onClick && onClick(); }}
-      className={`flex items-center px-2.5 py-1 rounded-full text-xs font-medium border ${styles[status]} transition-all`}
+      className={`flex items-center px-2.5 py-1 rounded-full text-xs font-medium border ${styles[status]} transition-all no-drag`}
     >
       {icons[status]}
       {status}
@@ -165,15 +175,20 @@ const InlineEditableText = ({
       onChange={(e) => setValue(e.target.value)}
       onBlur={handleBlur}
       onKeyDown={handleKeyDown}
-      // CRITICAL: Stop propagation of ALL drag/pointer events to isolate the input from the parent draggable
-      onDragStart={(e) => { e.stopPropagation(); e.preventDefault(); }}
+      // HACK: Rendi draggable=true ma previeni default su dragStart. 
+      // Questo dice al browser "Gestisco io il drag qui (non facendo nulla)", isolandolo dal genitore.
+      draggable={true}
+      onDragStart={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+      }}
+      className={`w-full bg-transparent border border-transparent rounded px-1 -ml-1 resize-none overflow-hidden focus:bg-slate-800 focus:border-slate-600 focus:outline-none focus:ring-1 focus:ring-primary transition-all whitespace-pre-wrap break-words cursor-text pointer-events-auto no-drag ${isDone ? 'text-slate-500 line-through' : 'text-slate-200'} ${className}`}
+      // Native events to stop propagation
       onMouseDown={(e) => e.stopPropagation()}
       onPointerDown={(e) => e.stopPropagation()}
       onClick={(e) => e.stopPropagation()}
-      draggable={false}
       rows={1}
       placeholder={placeholder}
-      className={`w-full bg-transparent border border-transparent rounded px-1 -ml-1 resize-none overflow-hidden focus:bg-slate-800 focus:border-slate-600 focus:outline-none focus:ring-1 focus:ring-primary transition-all whitespace-pre-wrap break-words cursor-text pointer-events-auto ${isDone ? 'text-slate-500 line-through' : 'text-slate-200'} ${className}`}
     />
   );
 };
@@ -184,7 +199,7 @@ const CollapsibleDescription = ({ text, onUpdate }: { text: string, onUpdate: (v
     if (!text) return null;
 
     return (
-        <div className="mt-2 w-full">
+        <div className="mt-2 w-full no-drag">
             {!isOpen ? (
                 <button 
                     onClick={() => setIsOpen(true)}
@@ -195,12 +210,8 @@ const CollapsibleDescription = ({ text, onUpdate }: { text: string, onUpdate: (v
                 </button>
             ) : (
                 <div 
-                    className="bg-slate-900/50 rounded p-2 border border-slate-800/50 w-full animate-in fade-in zoom-in-95 duration-200 cursor-auto"
-                    // IMPORTANT: Stop propagation of drag events on the container to prevent parent task dragging when selecting text in the padding area
-                    onDragStart={(e) => { e.stopPropagation(); e.preventDefault(); }}
+                    className="bg-slate-900/50 rounded p-2 border border-slate-800/50 w-full animate-in fade-in zoom-in-95 duration-200 cursor-auto no-drag"
                     onMouseDown={(e) => e.stopPropagation()}
-                    onPointerDown={(e) => e.stopPropagation()}
-                    draggable
                 >
                     <button 
                         onClick={() => setIsOpen(false)}
@@ -251,8 +262,6 @@ const TaskItem: React.FC<TaskItemProps> = ({
 
   const handleCopy = (e: React.MouseEvent) => {
     e.stopPropagation();
-    // Unisce titolo e descrizione in una singola linea separata da spazio.
-    // Sostituisce eventuali a capo nelle note con spazi per garantire l'inline.
     const desc = (task.description || '').replace(/[\r\n]+/g, ' ').trim();
     const content = `${task.title} ${desc}`.trim();
     
@@ -261,13 +270,24 @@ const TaskItem: React.FC<TaskItemProps> = ({
     setTimeout(() => setIsCopied(false), 2000);
   };
 
+  const handleDragStartInternal = (e: React.DragEvent) => {
+      const target = e.target as HTMLElement;
+      // Controllo rigoroso: se l'elemento è marcato no-drag o è un input, BLOCCA il drag.
+      if (target.closest('.no-drag') || ['INPUT', 'TEXTAREA', 'BUTTON', 'SELECT'].includes(target.tagName)) {
+          e.preventDefault();
+          e.stopPropagation();
+          return;
+      }
+      onDragStart(e, task.id);
+  };
+
   return (
     <div 
       draggable="true"
-      onDragStart={(e) => onDragStart(e, task.id)}
+      onDragStart={handleDragStartInternal}
       className={`group relative bg-surface rounded-xl border transition-all shadow-sm cursor-grab active:cursor-grabbing ${viewMode === 'LIST' ? 'flex flex-col md:flex-row md:items-start p-3 mb-2' : 'p-2.5 mb-2 flex flex-col'} ${isSelected ? 'border-primary/60 bg-primary/5' : 'border-slate-700/50 hover:border-primary/40'}`}
     >
-      <div className="absolute left-1 top-1/2 -translate-y-1/2 text-slate-700 opacity-0 group-hover:opacity-100 transition-opacity hidden md:block">
+      <div className="absolute left-1 top-1/2 -translate-y-1/2 text-slate-700 opacity-0 group-hover:opacity-100 transition-opacity hidden md:block pointer-events-none">
           <GripVertical size={14} />
       </div>
 
@@ -277,7 +297,7 @@ const TaskItem: React.FC<TaskItemProps> = ({
             onClick={(e) => { e.stopPropagation(); onToggleSelection(); }}
             onPointerDown={(e) => e.stopPropagation()}
             onMouseDown={(e) => e.stopPropagation()}
-            className={`mr-2 mt-1 cursor-pointer transition-colors ${isSelected ? 'text-primary' : 'text-slate-600 hover:text-slate-400'}`}
+            className={`mr-2 mt-1 cursor-pointer transition-colors no-drag ${isSelected ? 'text-primary' : 'text-slate-600 hover:text-slate-400'}`}
          >
              {isSelected ? <CheckSquare size={18} /> : <Square size={18} />}
          </div>
@@ -287,7 +307,7 @@ const TaskItem: React.FC<TaskItemProps> = ({
             text={task.title} 
             isDone={task.status === TaskStatus.DONE} 
             onSave={(val) => onUpdateTitle(task, val)} 
-            className="text-sm"
+            className="text-sm font-medium"
             />
             {viewMode === 'LIST' && task.description && (
             <CollapsibleDescription 
@@ -301,13 +321,16 @@ const TaskItem: React.FC<TaskItemProps> = ({
          </div>
       </div>
 
-      <div className={`flex items-center justify-between ${viewMode === 'LIST' ? 'gap-3 mt-2 md:mt-0 md:self-start' : 'w-full pt-1.5 border-t border-slate-700/50'}`}>
-        <div className="flex items-center gap-2">
+      <div className={`flex items-center justify-between ${viewMode === 'LIST' ? 'gap-3 mt-2 md:mt-0 md:self-start' : 'w-full pt-1.5 border-t border-slate-700/50'}`}
+        // Stop propagation on action bar to prevent drag start from empty spaces in toolbar
+        onMouseDown={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center gap-2 no-drag">
           <StatusBadge status={task.status} onClick={() => onCycleStatus(task)} />
           <PriorityBadge priority={task.priority} onClick={() => onCyclePriority(task)} />
         </div>
         
-        <div className={`flex items-center gap-1 transition-opacity`}>
+        <div className={`flex items-center gap-1 transition-opacity no-drag`}>
           <button 
               onClick={handleCopy}
               className="p-1.5 text-slate-500 hover:text-green-400 hover:bg-slate-700 rounded transition-colors"
@@ -839,7 +862,7 @@ export default function App() {
         } catch (e) { console.error(e); }
     } else {
         // Local
-        const newProj: Project = { id: crypto.randomUUID() as string, ...newProjData };
+        const newProj: Project = { id: generateId(), ...newProjData };
         saveLocalProjects([...projects, newProj]);
         setActiveProjectId(newProj.id);
     }
@@ -901,7 +924,7 @@ export default function App() {
              await addDoc(collection(db, "tasks"), newTaskData);
         } catch(e) { console.error(e); }
     } else {
-        const newTask: Task = { id: crypto.randomUUID() as string, ...newTaskData };
+        const newTask: Task = { id: generateId(), ...newTaskData };
         saveLocalTasks([...tasks, newTask]);
     }
   };
@@ -958,12 +981,20 @@ export default function App() {
       const ids = Array.from(selectedTaskIds);
       
       if (isFirebaseConfigured && db) {
-          // Batch non sempre supporta troppe operazioni, meglio loop per soft delete
-          // Promise.all per gestire le operazioni asincrone in parallelo
-          const promises = ids.map(id => deleteTask(id));
-          await Promise.all(promises);
+          try {
+            // Batch delete for robustness in Firestore
+            const batch = writeBatch(db);
+            ids.forEach(id => {
+                const ref = doc(db!, "tasks", id);
+                batch.update(ref, { deletedAt: Date.now() }); // Soft delete via Batch
+            });
+            await batch.commit();
+          } catch(e) {
+              console.error("Bulk delete error", e);
+              alert("Errore durante l'eliminazione massiva.");
+          }
       } else {
-          // Local
+          // Local - Efficient bulk update logic to prevent race conditions
           const updated = tasks.map(t => selectedTaskIds.has(t.id) ? { ...t, deletedAt: Date.now() } : t);
           saveLocalTasks(updated);
       }
@@ -1004,12 +1035,12 @@ export default function App() {
     if (!activeProjectId || !aiPrompt.trim() || !user) return;
     setIsAiLoading(true);
     try {
-      const generated = await generateTasksFromInput(aiPrompt as string, activeProjectId as string);
+      const generated = await generateTasksFromInput(String(aiPrompt), String(activeProjectId));
       
       if (isFirebaseConfigured && db) {
           const promises = generated.map(t => addDoc(collection(db!, "tasks"), {
             userId: user.uid,
-            projectId: activeProjectId,
+            projectId: activeProjectId || "",
             title: t.title || "Untitled Task",
             description: t.description || "",
             status: TaskStatus.TODO,
@@ -1020,9 +1051,9 @@ export default function App() {
       } else {
           // Local Generation
           const newTasks: Task[] = generated.map(t => ({
-             id: crypto.randomUUID() as string,
+             id: generateId(),
              userId: user.uid,
-             projectId: activeProjectId,
+             projectId: activeProjectId || "",
              title: t.title || "Untitled Task",
              description: t.description || "",
              status: TaskStatus.TODO,
@@ -1514,7 +1545,9 @@ export default function App() {
         
         {/* Bulk Action Bar */}
         {selectedTaskIds.size > 0 && (
-          <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-slate-900/90 backdrop-blur-md border border-slate-700 rounded-2xl shadow-2xl p-2 px-4 flex items-center gap-3 animate-in slide-in-from-bottom-6 z-40 max-w-[90vw]">
+          // FIX CRITICO: Rimosso onMouseDown={(e) => e.stopPropagation()} da qui
+          // Altrimenti il click sui pulsanti figli non funziona correttamente in alcuni browser
+          <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-slate-900/90 backdrop-blur-md border border-slate-700 rounded-2xl shadow-2xl p-2 px-4 flex items-center gap-3 animate-in slide-in-from-bottom-6 z-40 max-w-[90vw] no-drag">
               <div className="flex items-center gap-2 border-r border-slate-700 pr-3 mr-1">
                   <div className="bg-primary text-white text-xs font-bold rounded-md w-6 h-6 flex items-center justify-center">
                       {selectedTaskIds.size}
@@ -1549,7 +1582,13 @@ export default function App() {
               <div className="h-6 w-px bg-slate-700/50"></div>
 
               <button 
-                  onClick={handleBulkDelete}
+                  type="button"
+                  // CRITICAL FIX: Stop propagation to prevent drag events or losing focus
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    handleBulkDelete();
+                  }}
                   className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
               >
                   <Trash2 size={14} />
