@@ -1,3 +1,4 @@
+
 export enum TaskStatus {
   TODO = 'TO DO',
   TEST = 'DA TESTARE',
@@ -28,6 +29,7 @@ export interface Project {
   name: string;
   description?: string;
   createdAt: number;
+  order?: number; // Ordine personalizzato per la sidebar
 }
 
 export type ViewMode = 'LIST' | 'KANBAN';

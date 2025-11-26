@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import ReactDOM from 'react-dom/client';
 import { 
@@ -955,7 +956,17 @@ export default function App() {
         const q = query(collection(db, "projects"), where("userId", "==", user.uid));
         const unsubscribe = onSnapshot(q, 
           (snapshot) => {
-            const projData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Project)).sort((a, b) => a.createdAt - b.createdAt);
+            const projData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Project));
+            // Sort by order if available, else by createdAt
+            projData.sort((a, b) => {
+                 const orderA = a.order ?? a.createdAt;
+                 const orderB = b.order ?? b.createdAt;
+                 // If both have order, use it
+                 if (a.order !== undefined && b.order !== undefined) return a.order - b.order;
+                 // Fallback
+                 return a.createdAt - b.createdAt;
+            });
+
             setProjects(projData);
             if (projData.length > 0 && !activeProjectId) {
                 setActiveProjectId(projData[0].id);
@@ -978,6 +989,11 @@ export default function App() {
             const parsed = JSON.parse(saved) as Project[];
             // Simple validation
             if (Array.isArray(parsed)) {
+                // Sort
+                parsed.sort((a, b) => {
+                     if (a.order !== undefined && b.order !== undefined) return a.order - b.order;
+                     return a.createdAt - b.createdAt;
+                });
                 setProjects(parsed);
                 if (parsed.length > 0 && !activeProjectId) setActiveProjectId(parsed[0].id);
             }
@@ -1051,10 +1067,15 @@ export default function App() {
 
   const addProject = async () => {
     if (!newProjectInput.trim() || !user) return;
+    
+    // Determine new order (last + 1)
+    const maxOrder = projects.length > 0 ? Math.max(...projects.map(p => p.order || 0)) : 0;
+    
     const newProjData = {
         userId: user.uid,
         name: newProjectInput.trim(),
-        createdAt: Date.now()
+        createdAt: Date.now(),
+        order: maxOrder + 1
     };
 
     if (isFirebaseConfigured && db) {
@@ -1290,6 +1311,55 @@ export default function App() {
     }
   };
 
+  // --- Drag & Drop Project Logic ---
+  const onProjectDragStart = (e: React.DragEvent, projId: string) => {
+     e.dataTransfer.setData('projectId', projId);
+     e.dataTransfer.setData('type', 'PROJECT'); // Distinguere dai task
+     e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const onProjectDragOver = (e: React.DragEvent) => {
+      if (e.dataTransfer.getData('type') === 'PROJECT') {
+         e.preventDefault(); // Permetti drop
+      }
+  };
+
+  const handleProjectDrop = async (e: React.DragEvent, targetProjId: string) => {
+      const sourceId = e.dataTransfer.getData('projectId');
+      const type = e.dataTransfer.getData('type');
+      
+      if (type !== 'PROJECT' || sourceId === targetProjId) return;
+
+      const newProjects = [...projects];
+      const sourceIndex = newProjects.findIndex(p => p.id === sourceId);
+      const targetIndex = newProjects.findIndex(p => p.id === targetProjId);
+
+      if (sourceIndex < 0 || targetIndex < 0) return;
+
+      // Reorder array
+      const [moved] = newProjects.splice(sourceIndex, 1);
+      newProjects.splice(targetIndex, 0, moved);
+
+      // Re-assign sequential order
+      const updatedProjects = newProjects.map((p, index) => ({ ...p, order: index }));
+
+      // Optimistic update
+      setProjects(updatedProjects);
+
+      // Save
+      if (isFirebaseConfigured && db) {
+          const batch = writeBatch(db);
+          updatedProjects.forEach(p => {
+              const ref = doc(db!, "projects", p.id);
+              batch.update(ref, { order: p.order });
+          });
+          await batch.commit();
+      } else {
+          saveLocalProjects(updatedProjects);
+      }
+  };
+
+
   // --- UI Helpers ---
 
   useEffect(() => {
@@ -1502,10 +1572,14 @@ export default function App() {
             {projects.map(p => (
               <div 
                 key={p.id}
+                draggable
+                onDragStart={(e) => onProjectDragStart(e, p.id)}
+                onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }}
+                onDrop={(e) => handleProjectDrop(e, p.id)}
                 onClick={() => { setActiveProjectId(p.id); if(window.innerWidth < 768) setIsSidebarOpen(false); }}
                 className={`group flex items-center justify-between px-3 py-2 rounded-lg cursor-pointer text-sm transition-colors ${activeProjectId === p.id ? 'bg-primary/10 text-primary border border-primary/20' : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200 border border-transparent'}`}
               >
-                <span className="truncate flex-1">{p.name}</span>
+                <span className="truncate flex-1 select-none">{p.name}</span>
                 <button 
                   onClick={(e) => deleteProject(p.id, e)} 
                   className="opacity-0 group-hover:opacity-100 hover:bg-red-500/20 hover:text-red-400 p-1.5 rounded transition-all z-20"
