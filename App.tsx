@@ -910,7 +910,7 @@ export default function App() {
   // --- Search Shortcut Effect ---
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-        if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        if (e.altKey && e.key.toLowerCase() === 'k') {
             e.preventDefault();
             searchInputRef.current?.focus();
         }
@@ -1744,7 +1744,7 @@ export default function App() {
           </div>
 
           {activeProject && (
-              <div className="relative flex-1 max-w-xs hidden sm:block">
+              <div className="relative w-64 lg:w-72 hidden sm:block shrink-0 mx-2">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
                   <input 
                     ref={searchInputRef}
@@ -1758,7 +1758,7 @@ export default function App() {
                   <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1 pointer-events-none">
                      {!searchQuery ? (
                          <span className="text-[10px] text-slate-600 border border-slate-700 rounded px-1.5 py-0.5 font-mono flex items-center gap-0.5">
-                            <Command size={8} /> K
+                            <span className="text-[10px] font-bold">Alt</span> K
                          </span>
                      ) : (
                         <button 
