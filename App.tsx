@@ -45,9 +45,17 @@ import {
   Upload,
   FileJson,
   RefreshCw,
-  Eraser
+  Eraser,
+  FolderPlus,
+  LayoutTemplate,
+  MoreVertical,
+  Filter,
+  Eye,
+  EyeOff,
+  FileText,
+  AlignLeft
 } from 'lucide-react';
-import { Project, Task, TaskStatus, TaskPriority, ViewMode } from './types';
+import { Project, Task, TaskStatus, TaskPriority, ViewMode, Section } from './types';
 import { generateTasksFromInput } from './services/geminiService';
 import { auth, db, saveConfig, isFirebaseConfigured, getStoredConfig, resetConfig } from './services/firebase';
 import { 
@@ -78,6 +86,17 @@ const generateId = () => {
         return crypto.randomUUID() as string;
     }
     return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+};
+
+// Component for Smooth Collapsing Animation
+const SmoothCollapse = ({ isOpen, children, className = "" }: { isOpen: boolean, children?: React.ReactNode, className?: string }) => {
+    return (
+        <div className={`grid transition-[grid-template-rows] duration-300 ease-in-out ${isOpen ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'} ${className}`}>
+            <div className="overflow-hidden">
+                {children}
+            </div>
+        </div>
+    );
 };
 
 // --- Components ---
@@ -221,7 +240,7 @@ const CollapsibleDescription = ({ text, onUpdate }: { text: string, onUpdate: (v
 
     return (
         <div className="mt-0.5 w-full no-drag">
-            {!isOpen ? (
+            {!isOpen && (
                 <button 
                     onClick={() => setIsOpen(true)}
                     onPointerDown={(e) => e.stopPropagation()}
@@ -230,9 +249,10 @@ const CollapsibleDescription = ({ text, onUpdate }: { text: string, onUpdate: (v
                     <ChevronDown size={12} />
                     Mostra note ({text.split('\n')[0].substring(0, 30)}...)
                 </button>
-            ) : (
+            )}
+            <SmoothCollapse isOpen={isOpen}>
                 <div 
-                    className="bg-slate-900/50 rounded p-2 border border-slate-800/50 w-full animate-in fade-in zoom-in-95 duration-200 cursor-auto no-drag mt-1"
+                    className="bg-slate-900/50 rounded p-2 border border-slate-800/50 w-full cursor-auto no-drag mt-1"
                     onMouseDown={(e) => e.stopPropagation()}
                     onPointerDown={(e) => e.stopPropagation()}
                 >
@@ -249,7 +269,7 @@ const CollapsibleDescription = ({ text, onUpdate }: { text: string, onUpdate: (v
                         placeholder="Aggiungi note..."
                     />
                 </div>
-            )}
+            </SmoothCollapse>
         </div>
     );
 };
@@ -386,7 +406,6 @@ const TaskItem: React.FC<TaskItemProps> = ({
 };
 
 // --- Config & Backup Modal ---
-
 const FirebaseConfigModal = ({ 
     isOpen, 
     onClose, 
@@ -400,6 +419,7 @@ const FirebaseConfigModal = ({
     dataToBackup: { projects: Project[], tasks: Task[] },
     userId: string | undefined
 }) => {
+    
     const [config, setConfig] = useState({
         apiKey: "",
         authDomain: "",
@@ -415,7 +435,6 @@ const FirebaseConfigModal = ({
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
-        // Preload existing config if available
         if (isOpen) {
             const saved = getStoredConfig();
             if (saved) setConfig(saved);
@@ -502,8 +521,7 @@ const FirebaseConfigModal = ({
                 setRestoreStatus(`Ripristino di ${projectsToRestore.length} progetti e ${tasksToRestore.length} task...`);
 
                 if (isFirebaseConfigured && db) {
-                    // Firebase Restore (Batch)
-                    const batchSize = 450; // Firestore limit is 500
+                    const batchSize = 450; 
                     let batch = writeBatch(db);
                     let count = 0;
 
@@ -513,16 +531,13 @@ const FirebaseConfigModal = ({
                         count = 0;
                     };
 
-                    // Process Projects
                     for (const p of projectsToRestore) {
                         const ref = doc(db, "projects", p.id);
-                        // Force userId to current user
                         batch.set(ref, { ...p, userId: userId }, { merge: true });
                         count++;
                         if (count >= batchSize) await commitBatch();
                     }
 
-                    // Process Tasks
                     for (const t of tasksToRestore) {
                         const ref = doc(db, "tasks", t.id);
                         batch.set(ref, { ...t, userId: userId }, { merge: true });
@@ -533,11 +548,9 @@ const FirebaseConfigModal = ({
                     if (count > 0) await commitBatch();
 
                 } else {
-                    // Local Restore (Merge)
                     const currentProjects = JSON.parse(localStorage.getItem('ft_projects_local') || '[]');
                     const currentTasks = JSON.parse(localStorage.getItem('ft_tasks_local') || '[]');
                     
-                    // Merge strategies: imported wins if ID matches
                     const mergedProjects = [...currentProjects];
                     projectsToRestore.forEach(p => {
                         const idx = mergedProjects.findIndex(cp => cp.id === p.id);
@@ -555,7 +568,6 @@ const FirebaseConfigModal = ({
                     localStorage.setItem('ft_projects_local', JSON.stringify(mergedProjects));
                     localStorage.setItem('ft_tasks_local', JSON.stringify(mergedTasks));
                     
-                    // Force reload to see changes
                     window.location.reload();
                 }
 
@@ -579,7 +591,6 @@ const FirebaseConfigModal = ({
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
              <div className="w-full max-w-lg bg-surface border border-slate-700 rounded-2xl p-6 shadow-2xl relative animate-in fade-in zoom-in-95 flex flex-col max-h-[90vh]">
                 <button onClick={onClose} className="absolute top-4 right-4 text-slate-400 hover:text-white"><X size={20}/></button>
-                
                 <div className="flex items-center gap-3 mb-6 shrink-0">
                     <div className="w-10 h-10 bg-orange-500/20 text-orange-500 rounded-lg flex items-center justify-center">
                         <Database size={24} />
@@ -589,23 +600,17 @@ const FirebaseConfigModal = ({
                         <p className="text-sm text-slate-400">Gestisci connessione cloud e backup</p>
                     </div>
                 </div>
-
                 <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 space-y-8">
-                    
-                    {/* SEZIONE 1: CONFIGURAZIONE */}
                     <div className="space-y-4">
                         <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider border-b border-slate-800 pb-1">Connessione Firebase</h3>
-                        
-                        {/* Area Incolla Rapido */}
                         <div className="bg-slate-900 p-4 rounded-xl border border-slate-800">
                             <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-2">
-                                <ClipboardPaste size={14} />
-                                Incolla Configurazione Rapida
+                                <ClipboardPaste size={14} /> Incolla Configurazione Rapida
                             </label>
                             <textarea
                                 value={pasteInput}
                                 onChange={(e) => setPasteInput(e.target.value)}
-                                placeholder={`const firebaseConfig = {\n  apiKey: "...",\n  authDomain: "...",\n  ...\n};`}
+                                placeholder={`const firebaseConfig = {\n  apiKey: "...",\n  ... \n};`}
                                 className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-xs font-mono text-slate-300 focus:border-primary focus:outline-none h-20 resize-none mb-2"
                             />
                             <button
@@ -613,95 +618,38 @@ const FirebaseConfigModal = ({
                                 disabled={!pasteInput.trim()}
                                 className="w-full py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium rounded border border-slate-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
                             >
-                                <ArrowDown size={12} />
-                                Analizza ed Estrai Dati
+                                <ArrowDown size={12} /> Analizza ed Estrai Dati
                             </button>
-                            {parseSuccess && (
-                                <div className="mt-2 text-xs text-green-400 flex items-center gap-1">
-                                    <CheckCircle2 size={12} /> Campi compilati!
-                                </div>
-                            )}
+                            {parseSuccess && <div className="mt-2 text-xs text-green-400 flex items-center gap-1"><CheckCircle2 size={12} /> Campi compilati!</div>}
                         </div>
-
                         <div className="grid grid-cols-1 gap-3">
                             {Object.keys(config).map((key) => (
                                 <div key={key}>
                                     <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 block">{key}</label>
-                                    <input 
-                                        type="text"
-                                        name={key}
-                                        value={(config as any)[key]}
-                                        onChange={handleChange}
-                                        className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-sm text-white focus:border-primary focus:outline-none"
-                                    />
+                                    <input type="text" name={key} value={(config as any)[key]} onChange={handleChange} className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-sm text-white focus:border-primary focus:outline-none"/>
                                 </div>
                             ))}
                         </div>
                     </div>
-
-                    {/* SEZIONE 2: BACKUP & RESTORE */}
                     <div className="space-y-4">
                         <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider border-b border-slate-800 pb-1">Backup e Ripristino</h3>
-                        <p className="text-xs text-slate-400">
-                            Esporta tutti i tuoi progetti e task in un file JSON per sicurezza, oppure importa un backup precedente.
-                        </p>
-                        
                         <div className="grid grid-cols-2 gap-3">
-                            <button 
-                                onClick={handleBackup}
-                                className="flex flex-col items-center justify-center gap-2 p-4 bg-slate-900 border border-slate-700 hover:border-primary/50 hover:bg-slate-800 rounded-xl transition-all group"
-                            >
-                                <div className="p-2 bg-slate-800 group-hover:bg-primary/20 rounded-full text-slate-400 group-hover:text-primary transition-colors">
-                                    <Download size={20} />
-                                </div>
+                            <button onClick={handleBackup} className="flex flex-col items-center justify-center gap-2 p-4 bg-slate-900 border border-slate-700 hover:border-primary/50 hover:bg-slate-800 rounded-xl transition-all group">
+                                <div className="p-2 bg-slate-800 group-hover:bg-primary/20 rounded-full text-slate-400 group-hover:text-primary transition-colors"><Download size={20} /></div>
                                 <span className="text-xs font-bold text-slate-300">Scarica Backup</span>
                             </button>
-
-                            <button 
-                                onClick={handleRestoreClick}
-                                disabled={backupLoading}
-                                className="flex flex-col items-center justify-center gap-2 p-4 bg-slate-900 border border-slate-700 hover:border-orange-500/50 hover:bg-slate-800 rounded-xl transition-all group disabled:opacity-50"
-                            >
-                                <div className="p-2 bg-slate-800 group-hover:bg-orange-500/20 rounded-full text-slate-400 group-hover:text-orange-500 transition-colors">
-                                    {backupLoading ? <Loader2 size={20} className="animate-spin" /> : <Upload size={20} />}
-                                </div>
+                            <button onClick={handleRestoreClick} disabled={backupLoading} className="flex flex-col items-center justify-center gap-2 p-4 bg-slate-900 border border-slate-700 hover:border-orange-500/50 hover:bg-slate-800 rounded-xl transition-all group disabled:opacity-50">
+                                <div className="p-2 bg-slate-800 group-hover:bg-orange-500/20 rounded-full text-slate-400 group-hover:text-orange-500 transition-colors">{backupLoading ? <Loader2 size={20} className="animate-spin" /> : <Upload size={20} />}</div>
                                 <span className="text-xs font-bold text-slate-300">Ripristina Dati</span>
                             </button>
-                            <input 
-                                type="file" 
-                                accept=".json" 
-                                ref={fileInputRef} 
-                                className="hidden" 
-                                onChange={handleFileChange}
-                            />
+                            <input type="file" accept=".json" ref={fileInputRef} className="hidden" onChange={handleFileChange} />
                         </div>
-
-                        {restoreStatus && (
-                            <div className={`text-xs p-2 rounded border flex items-center gap-2 ${restoreStatus.includes('Errore') ? 'bg-red-500/10 border-red-500/30 text-red-400' : 'bg-green-500/10 border-green-500/30 text-green-400'}`}>
-                                <RefreshCw size={12} className={backupLoading ? "animate-spin" : ""} />
-                                {restoreStatus}
-                            </div>
-                        )}
+                        {restoreStatus && <div className={`text-xs p-2 rounded border flex items-center gap-2 ${restoreStatus.includes('Errore') ? 'bg-red-500/10 border-red-500/30 text-red-400' : 'bg-green-500/10 border-green-500/30 text-green-400'}`}><RefreshCw size={12} className={backupLoading ? "animate-spin" : ""} />{restoreStatus}</div>}
                     </div>
-
                 </div>
-
                 <div className="mt-6 flex gap-3 shrink-0 pt-4 border-t border-slate-800">
-                     {isFirebaseConfigured && (
-                         <button 
-                            onClick={resetConfig}
-                            className="px-4 py-2 border border-red-500/30 text-red-400 hover:bg-red-500/10 rounded-lg text-sm font-medium transition-colors"
-                         >
-                            Reset
-                         </button>
-                     )}
-                     <button 
-                        onClick={() => onSave(config)}
-                        disabled={!config.apiKey}
-                        className="flex-1 bg-primary hover:bg-blue-600 text-white font-bold py-2 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                     >
-                        Salva e Riavvia
-                     </button>
+                     {isFirebaseConfigured && <button onClick={resetConfig} className="px-4 py-2 border border-red-500/30 text-red-400 hover:bg-red-500/10 rounded-lg text-sm font-medium transition-colors">Reset</button>}
+                     <button onClick={() => onSave(config)} disabled={!config.apiKey} className="flex-1 bg-primary hover:bg-blue-600 text-white font-bold py-2 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed">Salva e Riavvia</button>
                 </div>
              </div>
         </div>
@@ -709,52 +657,36 @@ const FirebaseConfigModal = ({
 };
 
 // --- Login/Register Screen ---
-
 const LoginScreen = ({ onMockLogin }: { onMockLogin: () => void }) => {
-  const [isRegister, setIsRegister] = useState(false);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+    // [Login Screen Content - Copied exactly as before]
+    const [isRegister, setIsRegister] = useState(false);
+    const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setError(null);
-    
-    // MOCK LOGIN if firebase is not configured
-    if (!isFirebaseConfigured) {
-        // Simulate network delay
-        setTimeout(() => {
-            onMockLogin();
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setLoading(true);
+        setError(null);
+        if (!isFirebaseConfigured) {
+            setTimeout(() => { onMockLogin(); setLoading(false); }, 800);
+            return;
+        }
+        if (!auth) { setError("Errore configurazione auth."); setLoading(false); return; }
+        try {
+            if (isRegister) await createUserWithEmailAndPassword(auth, email, password);
+            else await signInWithEmailAndPassword(auth, email, password);
+        } catch (err: any) {
+            console.error(err);
+            let msg = "Si è verificato un errore.";
+            if (err.code === 'auth/invalid-email') msg = "Indirizzo email non valido.";
+            if (err.code === 'auth/wrong-password') msg = "Password non corretta.";
+            if (err.code === 'auth/email-already-in-use') msg = "Email già registrata.";
+            setError(msg);
             setLoading(false);
-        }, 800);
-        return;
-    }
-
-    if (!auth) {
-        setError("Errore configurazione auth.");
-        setLoading(false);
-        return;
-    }
-
-    try {
-      if (isRegister) {
-        await createUserWithEmailAndPassword(auth, email, password);
-      } else {
-        await signInWithEmailAndPassword(auth, email, password);
-      }
-    } catch (err: any) {
-      console.error(err);
-      let msg = "Si è verificato un errore.";
-      if (err.code === 'auth/invalid-email') msg = "Indirizzo email non valido.";
-      if (err.code === 'auth/user-not-found') msg = "Utente non trovato.";
-      if (err.code === 'auth/wrong-password') msg = "Password non corretta.";
-      if (err.code === 'auth/email-already-in-use') msg = "Email già registrata.";
-      setError(msg);
-      setLoading(false);
-    }
-  };
+        }
+    };
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-background p-4 relative overflow-hidden">
@@ -807,19 +739,11 @@ const LoginScreen = ({ onMockLogin }: { onMockLogin: () => void }) => {
           {!isFirebaseConfigured && (
               <div className="bg-blue-500/10 border border-blue-500/20 text-blue-400 text-xs p-3 rounded-lg flex items-start gap-2">
                   <WifiOff size={14} className="shrink-0 mt-0.5" />
-                  <span>
-                      Firebase non è configurato. L'accesso avverrà in <strong>Modalità Locale</strong>. 
-                      Potrai configurare il Cloud dalle impostazioni.
-                  </span>
+                  <span>Firebase non è configurato. L'accesso avverrà in <strong>Modalità Locale</strong>.</span>
               </div>
           )}
 
-          {error && (
-            <div className="bg-red-500/10 border border-red-500/20 text-red-400 text-xs p-3 rounded-lg flex items-center gap-2">
-              <AlertCircle size={14} />
-              {error}
-            </div>
-          )}
+          {error && <div className="bg-red-500/10 border border-red-500/20 text-red-400 text-xs p-3 rounded-lg flex items-center gap-2"><AlertCircle size={14} />{error}</div>}
 
           <button 
             type="submit" 
@@ -833,13 +757,7 @@ const LoginScreen = ({ onMockLogin }: { onMockLogin: () => void }) => {
 
         {isFirebaseConfigured && (
             <div className="mt-6 text-center">
-            <button 
-                type="button"
-                onClick={() => { setIsRegister(!isRegister); setError(null); }}
-                className="text-sm text-slate-400 hover:text-white transition-colors"
-            >
-                {isRegister ? 'Hai già un account? Accedi' : 'Non hai un account? Registrati'}
-            </button>
+            <button type="button" onClick={() => { setIsRegister(!isRegister); setError(null); }} className="text-sm text-slate-400 hover:text-white transition-colors">{isRegister ? 'Hai già un account? Accedi' : 'Non hai un account? Registrati'}</button>
             </div>
         )}
       </div>
@@ -852,12 +770,9 @@ const LoginScreen = ({ onMockLogin }: { onMockLogin: () => void }) => {
 export default function App() {
   // Mock User State (Local Mode)
   const [mockUser, setMockUser] = useState<User | null>(null);
-
   // Auth State (Firebase Mode)
   const [fbUser, setFbUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
-
-  // Derived User
   const user = isFirebaseConfigured ? fbUser : mockUser;
 
   // Data State
@@ -865,24 +780,36 @@ export default function App() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  
-  // Selection State
   const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(new Set());
   
   // Collapsed Groups State
-  const [collapsedGroups, setCollapsedGroups] = useState<Record<TaskStatus, boolean>>({
+  const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({
       [TaskStatus.TODO]: false,
       [TaskStatus.TEST]: false,
-      [TaskStatus.DONE]: true // Default collapsed
+      [TaskStatus.DONE]: true
   });
   
-  // Database Error State
+  // --- New States for Enhanced Views ---
+  const [groupByContainer, setGroupByContainer] = useState(true);
+  
+  // MULTI-SELECT CONTAINER FILTER STATE
+  const [selectedContainerIds, setSelectedContainerIds] = useState<Set<string>>(new Set());
+  const [isContainerFilterOpen, setIsContainerFilterOpen] = useState(false);
+  const [containerDropdownSearch, setContainerDropdownSearch] = useState('');
+
+  const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
+  // State for collapsed statuses WITHIN sections (Default DONE collapsed)
+  const [sectionStatusCollapsed, setSectionStatusCollapsed] = useState<Record<string, boolean>>({});
+
   const [dbError, setDbError] = useState<string | null>(null);
 
   // UI State
   const [viewMode, setViewMode] = useState<ViewMode>('LIST');
   const [newTaskTitle, setNewTaskTitle] = useState('');
   const [newTaskDesc, setNewTaskDesc] = useState('');
+  const [showTaskDescInput, setShowTaskDescInput] = useState(false);
+  const [targetSectionId, setTargetSectionId] = useState<string | null>(null);
+
   const [newProjectInput, setNewProjectInput] = useState('');
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isAiLoading, setIsAiLoading] = useState(false);
@@ -891,21 +818,23 @@ export default function App() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isProjectMenuOpen, setIsProjectMenuOpen] = useState(false);
   
-  // Confirmation Modal State
+  // Sections (Container) State UI
+  const [editingSectionId, setEditingSectionId] = useState<string | null>(null);
+  const [newSectionName, setNewSectionName] = useState('');
+  // New Section Creation Modal State
+  const [isSectionModalOpen, setIsSectionModalOpen] = useState(false);
+  const [sectionModalName, setSectionModalName] = useState('');
+  
+  // Confirmation Modal
   const [confirmModal, setConfirmModal] = useState<{isOpen: boolean, count: number, onConfirm: () => void}>({
       isOpen: false, count: 0, onConfirm: () => {}
   });
   
-  // Refs
   const searchInputRef = useRef<HTMLInputElement>(null);
-  
-  // Drag State
+  const newTaskInputRef = useRef<HTMLInputElement>(null);
   const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
-  
-  // Editing states
   const [editingProjectName, setEditingProjectName] = useState<string | null>(null);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
-  const titleTextareaRef = useRef<HTMLTextAreaElement>(null);
 
   // --- Search Shortcut Effect ---
   useEffect(() => {
@@ -928,67 +857,42 @@ export default function App() {
         });
         return () => unsubscribe();
     } else {
-        // In local mode, we are ready immediately (user is null until login)
         setAuthLoading(false);
     }
   }, []);
 
-  // --- Selection Clear Effect ---
+  // --- Selection Clear ---
   useEffect(() => {
-    // Pulisci selezione quando cambi progetto o modalità
     setSelectedTaskIds(new Set());
     setSearchQuery('');
+    setSelectedContainerIds(new Set()); // Reset container filter on project change
   }, [activeProjectId, viewMode]);
 
-  // --- Data Sync (Hybrid: Local vs Firestore) ---
-  
-  // Projects Sync
+  // --- Data Sync ---
   useEffect(() => {
-    if (!user) {
-        setProjects([]);
-        return;
-    }
-    
+    if (!user) { setProjects([]); return; }
     if (isFirebaseConfigured && db) {
         setDbError(null);
-        // FIRESTORE
         const q = query(collection(db, "projects"), where("userId", "==", user.uid));
-        const unsubscribe = onSnapshot(q, 
-          (snapshot) => {
+        const unsubscribe = onSnapshot(q, (snapshot) => {
             const projData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Project));
-            // Sort by order if available, else by createdAt
             projData.sort((a, b) => {
-                 const orderA = a.order ?? a.createdAt;
-                 const orderB = b.order ?? b.createdAt;
-                 // If both have order, use it
                  if (a.order !== undefined && b.order !== undefined) return a.order - b.order;
-                 // Fallback
                  return a.createdAt - b.createdAt;
             });
-
             setProjects(projData);
-            if (projData.length > 0 && !activeProjectId) {
-                setActiveProjectId(projData[0].id);
-            } else if (projData.length === 0) {
-                setActiveProjectId(null);
-            }
-          },
-          (error) => {
+            if (projData.length > 0 && !activeProjectId) setActiveProjectId(projData[0].id);
+            else if (projData.length === 0) setActiveProjectId(null);
+          }, (error) => {
             console.error("Firestore Projects Error:", error);
-            if (error.code === 'permission-denied') {
-              setDbError("Permesso negato. Controlla le regole di sicurezza nel database Firebase.");
-            }
-          }
-        );
+            if (error.code === 'permission-denied') setDbError("Permesso negato.");
+          });
         return () => unsubscribe();
     } else {
-        // LOCAL STORAGE
         const saved = localStorage.getItem(`ft_projects_local`);
         if (saved) {
             const parsed = JSON.parse(saved) as Project[];
-            // Simple validation
             if (Array.isArray(parsed)) {
-                // Sort
                 parsed.sort((a, b) => {
                      if (a.order !== undefined && b.order !== undefined) return a.order - b.order;
                      return a.createdAt - b.createdAt;
@@ -1000,32 +904,16 @@ export default function App() {
     }
   }, [user, isFirebaseConfigured]); 
 
-  // Tasks Sync
   useEffect(() => {
-    if (!user) {
-        setTasks([]);
-        return;
-    }
-
+    if (!user) { setTasks([]); return; }
     if (isFirebaseConfigured && db) {
-        // FIRESTORE
         const q = query(collection(db, "tasks"), where("userId", "==", user.uid));
-        const unsubscribe = onSnapshot(q, 
-          (snapshot) => {
+        const unsubscribe = onSnapshot(q, (snapshot) => {
             const taskData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Task));
             setTasks(taskData);
-          },
-          (error) => {
-             // Don't overwrite error if already set by projects
-             console.error("Firestore Tasks Error:", error);
-             if (error.code === 'permission-denied') {
-               setDbError((prev) => prev || "Permesso negato. Controlla le regole di sicurezza nel database Firebase.");
-             }
-          }
-        );
+          });
         return () => unsubscribe();
     } else {
-        // LOCAL STORAGE
         const saved = localStorage.getItem(`ft_tasks_local`);
         if (saved) {
             const parsed = JSON.parse(saved) as Task[];
@@ -1034,7 +922,6 @@ export default function App() {
     }
   }, [user, isFirebaseConfigured]);
 
-  // --- Helper to Save Local ---
   const saveLocalProjects = (newProjects: Project[]) => {
       setProjects(newProjects);
       localStorage.setItem(`ft_projects_local`, JSON.stringify(newProjects));
@@ -1044,45 +931,16 @@ export default function App() {
       localStorage.setItem(`ft_tasks_local`, JSON.stringify(newTasks));
   };
 
-  // --- Actions ---
-
-  const handleMockLogin = () => {
-      // Create a fake user object
-      const fakeUser: any = {
-          uid: 'local-user',
-          email: 'local@demo.com',
-          displayName: 'Utente Locale'
-      };
-      setMockUser(fakeUser);
-  };
-
-  const handleLogout = () => {
-    if(isFirebaseConfigured && auth) {
-        signOut(auth);
-    } else {
-        setMockUser(null);
-    }
-  };
+  // --- Project Actions ---
+  const handleMockLogin = () => setMockUser({ uid: 'local-user', email: 'local@demo.com', displayName: 'Utente Locale' } as any);
+  const handleLogout = () => isFirebaseConfigured && auth ? signOut(auth) : setMockUser(null);
 
   const addProject = async () => {
     if (!newProjectInput.trim() || !user) return;
-    
-    // Determine new order (last + 1)
     const maxOrder = projects.length > 0 ? Math.max(...projects.map(p => p.order || 0)) : 0;
-    
-    const newProjData = {
-        userId: user.uid,
-        name: newProjectInput.trim(),
-        createdAt: Date.now(),
-        order: maxOrder + 1
-    };
-
-    if (isFirebaseConfigured && db) {
-        try {
-            await addDoc(collection(db, "projects"), newProjData);
-        } catch (e) { console.error(e); }
-    } else {
-        // Local
+    const newProjData = { userId: user.uid, name: newProjectInput.trim(), createdAt: Date.now(), order: maxOrder + 1, sections: [] };
+    if (isFirebaseConfigured && db) await addDoc(collection(db, "projects"), newProjData);
+    else {
         const newProj: Project = { id: generateId(), ...newProjData };
         saveLocalProjects([...projects, newProj]);
         setActiveProjectId(newProj.id);
@@ -1092,179 +950,185 @@ export default function App() {
 
   const renameProject = async (newName: string) => {
     if (!activeProjectId || !newName.trim()) return;
-    
-    if (isFirebaseConfigured && db) {
-        try {
-            const projRef = doc(db, "projects", activeProjectId);
-            await updateDoc(projRef, { name: newName.trim() });
-        } catch (e) { console.error(e); }
-    } else {
-        const updated = projects.map(p => p.id === activeProjectId ? { ...p, name: newName.trim() } : p);
-        saveLocalProjects(updated);
-    }
+    if (isFirebaseConfigured && db) await updateDoc(doc(db, "projects", activeProjectId), { name: newName.trim() });
+    else saveLocalProjects(projects.map(p => p.id === activeProjectId ? { ...p, name: newName.trim() } : p));
     setEditingProjectName(null);
   };
 
   const deleteProject = async (projId: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    e.preventDefault();
+    e.stopPropagation(); e.preventDefault();
     if (!window.confirm('Sei sicuro? Questo eliminerà il progetto e TUTTI i suoi task.')) return;
-
     if (isFirebaseConfigured && db) {
-        try {
-            await deleteDoc(doc(db, "projects", projId));
-            const projectTasks = tasks.filter(t => t.projectId === projId);
-            projectTasks.forEach(async (t) => { await deleteDoc(doc(db, "tasks", t.id)); });
-        } catch (e) { console.error(e); }
+        await deleteDoc(doc(db, "projects", projId));
+        tasks.filter(t => t.projectId === projId).forEach(async (t) => await deleteDoc(doc(db, "tasks", t.id)));
     } else {
         const updatedProjs = projects.filter(p => p.id !== projId);
         saveLocalProjects(updatedProjs);
         if (activeProjectId === projId) setActiveProjectId(updatedProjs.length > 0 ? updatedProjs[0].id : null);
-        
-        // Delete related tasks
-        const updatedTasks = tasks.filter(t => t.projectId !== projId);
-        saveLocalTasks(updatedTasks);
+        saveLocalTasks(tasks.filter(t => t.projectId !== projId));
     }
   };
 
-  const addTask = async (title: string, desc: string) => {
+  // --- Section Actions ---
+  const addSection = () => {
+      if (!activeProject || !user) return;
+      setSectionModalName('');
+      setIsSectionModalOpen(true);
+  };
+
+  const handleCreateSection = async (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!activeProject || !user || !sectionModalName.trim()) return;
+      
+      const currentSections = activeProject.sections || [];
+      const newSection: Section = {
+          id: generateId(),
+          name: sectionModalName.trim(),
+          order: currentSections.length
+      };
+      
+      const updatedSections = [...currentSections, newSection];
+      
+      if (isFirebaseConfigured && db) {
+          await updateDoc(doc(db, "projects", activeProject.id), { sections: updatedSections });
+      } else {
+          saveLocalProjects(projects.map(p => p.id === activeProject.id ? { ...p, sections: updatedSections } : p));
+      }
+      setIsSectionModalOpen(false);
+      setSectionModalName('');
+  };
+
+  const renameSection = async (sectionId: string, newName: string) => {
+      if (!activeProject) return;
+      const updatedSections = (activeProject.sections || []).map(s => s.id === sectionId ? {...s, name: newName} : s);
+      if (isFirebaseConfigured && db) {
+          await updateDoc(doc(db, "projects", activeProject.id), { sections: updatedSections });
+      } else {
+          saveLocalProjects(projects.map(p => p.id === activeProject.id ? { ...p, sections: updatedSections } : p));
+      }
+      setEditingSectionId(null);
+  };
+
+  const deleteSection = async (sectionId: string) => {
+      if (!activeProject || !confirm("Eliminare questa sezione? I task rimarranno ma saranno 'Senza Sezione'.")) return;
+      const updatedSections = (activeProject.sections || []).filter(s => s.id !== sectionId);
+      
+      if (isFirebaseConfigured && db) {
+          const batch = writeBatch(db);
+          // Update Project
+          batch.update(doc(db, "projects", activeProject.id), { sections: updatedSections });
+          // Update Tasks (remove sectionId)
+          tasks.filter(t => t.projectId === activeProject.id && t.sectionId === sectionId).forEach(t => {
+              batch.update(doc(db!, "tasks", t.id), { sectionId: null }); // or deleteField() if prefer
+          });
+          await batch.commit();
+      } else {
+          saveLocalProjects(projects.map(p => p.id === activeProject.id ? { ...p, sections: updatedSections } : p));
+          saveLocalTasks(tasks.map(t => t.projectId === activeProject.id && t.sectionId === sectionId ? { ...t, sectionId: undefined } : t));
+      }
+  };
+
+  // --- Task Actions ---
+
+  const addTask = async (title: string, desc: string, sectionId?: string) => {
     if (!activeProjectId || !title.trim() || !user) return;
-    
     const newTaskData = {
         userId: user.uid,
         projectId: activeProjectId,
+        sectionId: sectionId, // Assign to section if provided
         title: title.trim(),
         description: desc.trim(),
         status: TaskStatus.TODO,
-        priority: TaskPriority.MEDIUM, // DEFAULT MEDIUM
+        priority: TaskPriority.MEDIUM,
         createdAt: Date.now()
     };
-
-    if (isFirebaseConfigured && db) {
-        try {
-             await addDoc(collection(db, "tasks"), newTaskData);
-        } catch(e) { console.error(e); }
-    } else {
-        const newTask: Task = { id: generateId(), ...newTaskData };
-        saveLocalTasks([...tasks, newTask]);
-    }
+    if (isFirebaseConfigured && db) await addDoc(collection(db, "tasks"), newTaskData);
+    else saveLocalTasks([...tasks, { id: generateId(), ...newTaskData }]);
   };
 
   const updateTask = async (taskId: string, updates: Partial<Task>) => {
-    if (isFirebaseConfigured && db) {
-        try {
-            const taskRef = doc(db, "tasks", taskId);
-            await updateDoc(taskRef, updates);
-        } catch(e) { console.error(e); }
-    } else {
-        const updated = tasks.map(t => t.id === taskId ? { ...t, ...updates } : t);
-        saveLocalTasks(updated);
-    }
+    if (isFirebaseConfigured && db) await updateDoc(doc(db, "tasks", taskId), updates);
+    else saveLocalTasks(tasks.map(t => t.id === taskId ? { ...t, ...updates } : t));
   };
 
-  const deleteTask = async (taskId: string) => {
-     // Soft delete
-     await updateTask(taskId, { deletedAt: Date.now() });
-     // NOTA: Non gestiamo più la selezione qui per evitare loop in eliminazione massiva
-  };
-
-  // --- Bulk Actions ---
+  const deleteTask = async (taskId: string) => updateTask(taskId, { deletedAt: Date.now() });
 
   const toggleTaskSelection = (taskId: string) => {
       const newSet = new Set(selectedTaskIds);
-      if (newSet.has(taskId)) {
-          newSet.delete(taskId);
-      } else {
-          newSet.add(taskId);
-      }
+      if (newSet.has(taskId)) newSet.delete(taskId);
+      else newSet.add(taskId);
       setSelectedTaskIds(newSet);
+  };
+
+  const toggleContainerSelection = (sectionId: string) => {
+      const newSet = new Set(selectedContainerIds);
+      if (newSet.has(sectionId)) newSet.delete(sectionId);
+      else newSet.add(sectionId);
+      setSelectedContainerIds(newSet);
   };
 
   const handleBulkCopy = () => {
       const selectedTasks = tasks.filter(t => selectedTaskIds.has(t.id));
       if (selectedTasks.length === 0) return;
-
       const text = selectedTasks.map(t => {
-          // Concatena titolo e descrizione (pulita da newline)
           const desc = (t.description || '').replace(/[\r\n]+/g, ' ').trim();
-          // Formatta come lista puntata per ogni task
           return `- ${t.title} ${desc}`.trim();
       }).join('\n');
-
       navigator.clipboard.writeText(text);
-      alert(`${selectedTasks.length} task copiati negli appunti.`);
+      alert(`${selectedTasks.length} task copiati.`);
       setSelectedTaskIds(new Set());
   };
 
-  const requestBulkDelete = () => {
-      setConfirmModal({
-          isOpen: true,
-          count: selectedTaskIds.size,
-          onConfirm: performBulkDelete
-      });
-  };
+  const requestBulkDelete = () => setConfirmModal({ isOpen: true, count: selectedTaskIds.size, onConfirm: performBulkDelete });
 
   const performBulkDelete = async () => {
         const ids = Array.from(selectedTaskIds);
-        
         if (isFirebaseConfigured && db) {
             try {
-                // Batch delete for robustness in Firestore
                 const batch = writeBatch(db);
                 ids.forEach(id => {
                     const ref = doc(db!, "tasks", id);
-                    batch.update(ref, { deletedAt: Date.now() }); // Soft delete via Batch
+                    batch.update(ref, { deletedAt: Date.now() });
                 });
                 await batch.commit();
-            } catch(e) {
-                console.error("Bulk delete error", e);
-                alert("Errore durante l'eliminazione massiva.");
-            }
+            } catch(e) { console.error("Bulk delete error", e); }
         } else {
-            // Local - Efficient bulk update logic
-            const updated = tasks.map(t => selectedTaskIds.has(t.id) ? { ...t, deletedAt: Date.now() } : t);
-            saveLocalTasks(updated);
+            saveLocalTasks(tasks.map(t => selectedTaskIds.has(t.id) ? { ...t, deletedAt: Date.now() } : t));
         }
-        // Pulisci selezione SOLO alla fine
         setSelectedTaskIds(new Set());
         setConfirmModal({ ...confirmModal, isOpen: false });
   };
 
   const handleBulkStatusChange = async (newStatus: TaskStatus) => {
       const ids = Array.from(selectedTaskIds);
-      
       if (isFirebaseConfigured && db) {
           const batch = writeBatch(db);
-          ids.forEach(id => {
-              const ref = doc(db!, "tasks", id);
-              batch.update(ref, { status: newStatus });
-          });
+          ids.forEach(id => batch.update(doc(db!, "tasks", id), { status: newStatus }));
           await batch.commit();
-      } else {
-          const updated = tasks.map(t => selectedTaskIds.has(t.id) ? { ...t, status: newStatus } : t);
-          saveLocalTasks(updated);
-      }
+      } else saveLocalTasks(tasks.map(t => selectedTaskIds.has(t.id) ? { ...t, status: newStatus } : t));
       setSelectedTaskIds(new Set());
   };
 
-
   const handleQuickAdd = (e: React.FormEvent) => {
     e.preventDefault();
-    addTask(newTaskTitle, newTaskDesc);
-    setNewTaskTitle('');
-    setNewTaskDesc('');
-    if (titleTextareaRef.current) {
-        titleTextareaRef.current.style.height = 'auto';
-        titleTextareaRef.current.focus();
-    }
+    // Default to targetSectionId or null
+    const finalSectionId = targetSectionId || undefined;
+    addTask(newTaskTitle, newTaskDesc, finalSectionId);
+    handleClearInput();
   };
 
   const handleClearInput = () => {
-      setNewTaskTitle('');
+      setNewTaskTitle(''); 
       setNewTaskDesc('');
-      if (titleTextareaRef.current) {
-          titleTextareaRef.current.style.height = 'auto';
-          titleTextareaRef.current.focus();
+      setTargetSectionId(null);
+      if (newTaskInputRef.current) { newTaskInputRef.current.focus(); }
+  };
+  
+  const handleAddToSection = (sectionId: string) => {
+      setTargetSectionId(sectionId);
+      if (newTaskInputRef.current) {
+          newTaskInputRef.current.focus();
+          newTaskInputRef.current.scrollIntoView({ behavior: 'smooth' });
       }
   };
 
@@ -1273,116 +1137,118 @@ export default function App() {
     setIsAiLoading(true);
     try {
       const generated = await generateTasksFromInput(String(aiPrompt), String(activeProjectId));
-      
+      // By default, AI tasks go to no section (Backlog/Uncategorized)
       if (isFirebaseConfigured && db) {
           const promises = generated.map(t => addDoc(collection(db!, "tasks"), {
-            userId: user.uid,
-            projectId: activeProjectId || "",
-            title: t.title || "Untitled Task",
-            description: t.description || "",
-            status: TaskStatus.TODO,
-            priority: TaskPriority.MEDIUM, // Default MEDIUM
-            createdAt: Date.now()
+            userId: user.uid, projectId: activeProjectId || "", title: t.title || "Untitled", description: t.description || "",
+            status: TaskStatus.TODO, priority: TaskPriority.MEDIUM, createdAt: Date.now()
           }));
           await Promise.all(promises);
       } else {
-          // Local Generation
           const newTasks: Task[] = generated.map(t => ({
-             id: generateId(),
-             userId: user.uid,
-             projectId: activeProjectId || "",
-             title: t.title || "Untitled Task",
-             description: t.description || "",
-             status: TaskStatus.TODO,
-             priority: TaskPriority.MEDIUM, // Default MEDIUM
-             createdAt: Date.now()
+             id: generateId(), userId: user.uid, projectId: activeProjectId || "", title: t.title || "Untitled", description: t.description || "",
+             status: TaskStatus.TODO, priority: TaskPriority.MEDIUM, createdAt: Date.now()
           }));
           saveLocalTasks([...tasks, ...newTasks]);
       }
-      
-      setAiPrompt('');
-      setAiModalOpen(false);
-    } catch (error: any) {
-      console.error(error);
-      alert("Errore durante la generazione dei task.");
-    } finally {
-      setIsAiLoading(false);
-    }
+      setAiPrompt(''); setAiModalOpen(false);
+    } catch (error: any) { console.error(error); alert("Errore generazione task."); } finally { setIsAiLoading(false); }
   };
 
-  // --- Drag & Drop Project Logic ---
+  // --- Drag & Drop ---
   const onProjectDragStart = (e: React.DragEvent, projId: string) => {
-     e.dataTransfer.setData('projectId', projId);
-     e.dataTransfer.setData('type', 'PROJECT'); // Distinguere dai task
-     e.dataTransfer.effectAllowed = 'move';
+     e.dataTransfer.setData('projectId', projId); e.dataTransfer.setData('type', 'PROJECT'); e.dataTransfer.effectAllowed = 'move';
   };
-
   const onProjectDragOver = (e: React.DragEvent) => {
-      if (e.dataTransfer.getData('type') === 'PROJECT') {
-         e.preventDefault(); // Permetti drop
-      }
+      if (e.dataTransfer.getData('type') === 'PROJECT') e.preventDefault(); 
   };
-
   const handleProjectDrop = async (e: React.DragEvent, targetProjId: string) => {
       const sourceId = e.dataTransfer.getData('projectId');
-      const type = e.dataTransfer.getData('type');
-      
-      if (type !== 'PROJECT' || sourceId === targetProjId) return;
-
+      if (e.dataTransfer.getData('type') !== 'PROJECT' || sourceId === targetProjId) return;
       const newProjects = [...projects];
       const sourceIndex = newProjects.findIndex(p => p.id === sourceId);
       const targetIndex = newProjects.findIndex(p => p.id === targetProjId);
-
       if (sourceIndex < 0 || targetIndex < 0) return;
-
-      // Reorder array
       const [moved] = newProjects.splice(sourceIndex, 1);
       newProjects.splice(targetIndex, 0, moved);
-
-      // Re-assign sequential order
       const updatedProjects = newProjects.map((p, index) => ({ ...p, order: index }));
-
-      // Optimistic update
       setProjects(updatedProjects);
-
-      // Save
       if (isFirebaseConfigured && db) {
           const batch = writeBatch(db);
-          updatedProjects.forEach(p => {
-              const ref = doc(db!, "projects", p.id);
-              batch.update(ref, { order: p.order });
-          });
+          updatedProjects.forEach(p => batch.update(doc(db!, "projects", p.id), { order: p.order }));
           await batch.commit();
-      } else {
-          saveLocalProjects(updatedProjects);
+      } else saveLocalProjects(updatedProjects);
+  };
+
+  const onDragStart = (e: React.DragEvent, taskId: string) => {
+    setDraggedTaskId(taskId); e.dataTransfer.setData('type', 'TASK'); e.dataTransfer.effectAllowed = 'move';
+  };
+  const onDragOver = (e: React.DragEvent) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; };
+  
+  // Handle dropping a task onto a Section (Container)
+  const onDropToSection = (e: React.DragEvent, sectionId: string | undefined) => {
+      e.preventDefault();
+      if (draggedTaskId) {
+          // If sectionId is undefined, it means "Uncategorized"
+          const updates: any = { sectionId: sectionId || null };
+          updateTask(draggedTaskId, updates);
+          setDraggedTaskId(null);
       }
   };
 
-
-  // --- UI Helpers ---
-
-  useEffect(() => {
-    if (titleTextareaRef.current) {
-      titleTextareaRef.current.style.height = 'auto';
-      titleTextareaRef.current.style.height = titleTextareaRef.current.scrollHeight + 'px';
+  // New: Handle dropping a task onto a specific status inside a Section
+  const onDropToSectionAndStatus = (e: React.DragEvent, sectionId: string | undefined | null, targetStatus: TaskStatus) => {
+    e.preventDefault();
+    e.stopPropagation(); // Stop bubbling to onDropToSection
+    if (draggedTaskId) {
+        updateTask(draggedTaskId, { 
+            sectionId: sectionId || null, 
+            status: targetStatus 
+        });
+        setDraggedTaskId(null);
     }
-  }, [newTaskTitle]);
+  };
+
+  // Handle dropping a task onto a Status (Kanban or Classic List)
+  const onDropToStatus = (e: React.DragEvent, targetStatus: TaskStatus) => {
+    e.preventDefault();
+    if (draggedTaskId) {
+      updateTask(draggedTaskId, { status: targetStatus });
+      setDraggedTaskId(null);
+    }
+  };
+
+  const toggleGroup = (key: string) => setCollapsedGroups(prev => ({...prev, [key]: !prev[key]}));
+
+  const toggleSection = (id: string) => {
+      const newSet = new Set(collapsedSections);
+      if (newSet.has(id)) newSet.delete(id);
+      else newSet.add(id);
+      setCollapsedSections(newSet);
+  };
+
+  const toggleSectionStatus = (secId: string, status: string) => {
+      const key = `${secId}-${status}`;
+      setSectionStatusCollapsed(prev => ({...prev, [key]: !isSectionStatusCollapsed(secId, status)}));
+  };
+
+  const isSectionStatusCollapsed = (secId: string, status: string) => {
+      const key = `${secId}-${status}`;
+      if (sectionStatusCollapsed[key] !== undefined) return sectionStatusCollapsed[key];
+      // Default: DONE is collapsed, others open
+      return status === TaskStatus.DONE;
+  };
+
+  // --- Rendering Helpers ---
 
   const activeTasks = useMemo(() => {
     const priorityWeight = { [TaskPriority.HIGH]: 3, [TaskPriority.MEDIUM]: 2, [TaskPriority.LOW]: 1 };
-    const query = searchQuery.trim().toLowerCase();
-
-    return tasks
-        .filter(t => {
-            const matchesProject = t.projectId === activeProjectId && !t.deletedAt;
-            if (!matchesProject) return false;
-            if (!query) return true;
-            return (
-                t.title.toLowerCase().includes(query) || 
-                (t.description && t.description.toLowerCase().includes(query))
-            );
-        })
-        .sort((a, b) => {
+    const queryStr = searchQuery.trim().toLowerCase();
+    return tasks.filter(t => {
+            if (t.projectId !== activeProjectId || t.deletedAt) return false;
+            if (!queryStr) return true;
+            return (t.title.toLowerCase().includes(queryStr) || (t.description && t.description.toLowerCase().includes(queryStr)));
+        }).sort((a, b) => {
             const pDiff = priorityWeight[b.priority] - priorityWeight[a.priority];
             if (pDiff !== 0) return pDiff;
             return a.title.localeCompare(b.title);
@@ -1392,98 +1258,39 @@ export default function App() {
   const activeProject = useMemo(() => projects.find(p => p.id === activeProjectId), [projects, activeProjectId]);
 
   const cycleStatus = (task: Task) => {
-    const map: Record<TaskStatus, TaskStatus> = {
-      [TaskStatus.TODO]: TaskStatus.TEST,
-      [TaskStatus.TEST]: TaskStatus.DONE,
-      [TaskStatus.DONE]: TaskStatus.TODO
-    };
+    const map: Record<TaskStatus, TaskStatus> = { [TaskStatus.TODO]: TaskStatus.TEST, [TaskStatus.TEST]: TaskStatus.DONE, [TaskStatus.DONE]: TaskStatus.TODO };
     updateTask(task.id, { status: map[task.status] });
   };
-
   const cyclePriority = (task: Task) => {
-    const map: Record<TaskPriority, TaskPriority> = {
-      [TaskPriority.LOW]: TaskPriority.MEDIUM,
-      [TaskPriority.MEDIUM]: TaskPriority.HIGH,
-      [TaskPriority.HIGH]: TaskPriority.LOW
-    };
+    const map: Record<TaskPriority, TaskPriority> = { [TaskPriority.LOW]: TaskPriority.MEDIUM, [TaskPriority.MEDIUM]: TaskPriority.HIGH, [TaskPriority.HIGH]: TaskPriority.LOW };
     updateTask(task.id, { priority: map[task.priority] });
   };
 
   const saveEditedTask = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editingTask || !editingTask.title.trim()) return;
-    const { id, ...data } = editingTask;
-    updateTask(id, data);
-    setEditingTask(null);
+    e.preventDefault(); if (!editingTask || !editingTask.title.trim()) return;
+    const { id, ...data } = editingTask; updateTask(id, data); setEditingTask(null);
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault(); 
-      document.getElementById('newTaskDesc')?.focus();
-    }
-  };
+  const handleKeyDown = (e: React.KeyboardEvent) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); document.getElementById('newTaskDesc')?.focus(); } };
 
-  const onDragStart = (e: React.DragEvent, taskId: string) => {
-    setDraggedTaskId(taskId);
-    e.dataTransfer.effectAllowed = 'move';
-  };
-  const onDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-  };
-  const onDrop = (e: React.DragEvent, targetStatus: TaskStatus) => {
-    e.preventDefault();
-    if (draggedTaskId) {
-      updateTask(draggedTaskId, { status: targetStatus });
-      setDraggedTaskId(null);
-    }
-  };
+  if (authLoading) return <div className="flex items-center justify-center min-h-screen bg-background text-primary"><Loader2 className="animate-spin" size={48} /></div>;
+  if (!user) return <LoginScreen onMockLogin={handleMockLogin} />;
 
-  const toggleGroup = (status: TaskStatus) => {
-      setCollapsedGroups(prev => ({...prev, [status]: !prev[status]}));
-  };
+  const hasSections = activeProject?.sections && activeProject.sections.length > 0;
 
-  // --- Rendering ---
-
-  if (authLoading) {
-    return <div className="flex items-center justify-center min-h-screen bg-background text-primary"><Loader2 className="animate-spin" size={48} /></div>;
-  }
-
-  if (!user) {
-    return <LoginScreen onMockLogin={handleMockLogin} />;
-  }
+  // --- View Renderers ---
 
   const renderKanbanColumn = (status: TaskStatus, title: string, colorClass: string, borderColorClass: string) => {
     const colTasks = activeTasks.filter(t => t.status === status);
     return (
-      <div 
-        className="flex-1 min-w-[300px] flex flex-col h-full bg-slate-900/50 rounded-xl border border-slate-800/50 transition-colors"
-        onDragOver={onDragOver}
-        onDrop={(e) => onDrop(e, status)}
-      >
+      <div className="flex-1 min-w-[300px] flex flex-col h-full bg-slate-900/50 rounded-xl border border-slate-800/50 transition-colors" onDragOver={onDragOver} onDrop={(e) => onDropToStatus(e, status)}>
         <div className={`p-4 border-b ${borderColorClass} flex items-center justify-between sticky top-0 bg-slate-900/90 backdrop-blur-md rounded-t-xl z-10`}>
-          <div className="flex items-center gap-2">
-            <h3 className={`font-bold ${colorClass} text-sm uppercase tracking-wide`}>{title}</h3>
-          </div>
+          <div className="flex items-center gap-2"><h3 className={`font-bold ${colorClass} text-sm uppercase tracking-wide`}>{title}</h3></div>
           <span className="text-xs font-mono text-slate-500 bg-slate-800 px-2 py-0.5 rounded-md">{colTasks.length}</span>
         </div>
         <div className="p-3 overflow-y-auto flex-1 space-y-3 custom-scrollbar">
           {colTasks.map(task => (
-            <TaskItem 
-              key={task.id}
-              task={task}
-              viewMode="KANBAN"
-              isSelected={selectedTaskIds.has(task.id)}
-              onToggleSelection={() => toggleTaskSelection(task.id)}
-              onCycleStatus={cycleStatus}
-              onCyclePriority={cyclePriority}
-              onUpdateTitle={(t, val) => updateTask(t.id, { title: val })}
-              onUpdateDescription={(t, val) => updateTask(t.id, { description: val })}
-              onEdit={setEditingTask}
-              onDelete={deleteTask}
-              onDragStart={onDragStart}
-            />
+            <TaskItem key={task.id} task={task} viewMode="KANBAN" isSelected={selectedTaskIds.has(task.id)} onToggleSelection={() => toggleTaskSelection(task.id)} onCycleStatus={cycleStatus} onCyclePriority={cyclePriority} onUpdateTitle={(t, val) => updateTask(t.id, { title: val })} onUpdateDescription={(t, val) => updateTask(t.id, { description: val })} onEdit={setEditingTask} onDelete={deleteTask} onDragStart={onDragStart} />
           ))}
           {colTasks.length === 0 && <div className="h-24 border-2 border-dashed border-slate-800 rounded-lg flex items-center justify-center text-slate-700 text-xs pointer-events-none">Trascina qui i task</div>}
         </div>
@@ -1492,59 +1299,206 @@ export default function App() {
   };
 
   const renderListView = () => {
-    const groups = [
-        { status: TaskStatus.TODO, label: 'DA FARE', color: 'text-slate-200', border: 'border-slate-600' },
-        { status: TaskStatus.TEST, label: 'DA TESTARE', color: 'text-orange-400', border: 'border-orange-700' },
-        { status: TaskStatus.DONE, label: 'COMPLETATO', color: 'text-green-400', border: 'border-green-700' }
-    ];
-
-    return (
-      <div className="max-w-5xl mx-auto space-y-8 pb-20">
-        {groups.map(group => {
-          const groupTasks = activeTasks.filter(t => t.status === group.status);
-          const isCollapsed = collapsedGroups[group.status];
-          
-          return (
-            <div 
-                key={group.status} 
-                onDragOver={onDragOver}
-                onDrop={(e) => onDrop(e, group.status)}
-                className="rounded-xl min-h-[50px]"
-            >
-              <h3 
-                onClick={() => toggleGroup(group.status)}
-                className={`text-sm font-bold ${group.color} uppercase tracking-wider mb-3 px-1 flex items-center gap-2 border-b ${group.border} pb-2 cursor-pointer hover:bg-slate-800/50 rounded-t transition-colors select-none`}
-              >
-                 {isCollapsed ? <ChevronRight size={18} /> : <ChevronDown size={18} />}
-                 {group.label} <span className="bg-slate-800 text-slate-400 px-2 py-0.5 rounded-full text-[10px]">{groupTasks.length}</span>
-              </h3>
-              
-              {!isCollapsed && (
-                  <div className="space-y-2 animate-in slide-in-from-top-2 duration-300">
-                    {groupTasks.map(task => (
-                      <TaskItem 
-                        key={task.id} 
-                        task={task} 
-                        viewMode="LIST"
-                        isSelected={selectedTaskIds.has(task.id)}
-                        onToggleSelection={() => toggleTaskSelection(task.id)}
-                        onCycleStatus={cycleStatus} 
-                        onCyclePriority={cyclePriority}
-                        onUpdateTitle={(t, val) => updateTask(t.id, { title: val })}
-                        onUpdateDescription={(t, val) => updateTask(t.id, { description: val })}
-                        onEdit={setEditingTask}
-                        onDelete={deleteTask} 
-                        onDragStart={onDragStart}
-                      />
-                    ))}
-                    {groupTasks.length === 0 && <div className="text-slate-600 text-xs italic p-4 text-center border border-dashed border-slate-800 rounded-lg">Nessun task in questa lista. Trascina qui per spostare.</div>}
-                  </div>
-              )}
+    
+    // Check if we should render sections
+    if (!hasSections || !groupByContainer) {
+        // --- CLASSIC STATUS VIEW ---
+        const groups = [
+            { status: TaskStatus.TODO, label: 'DA FARE', color: 'text-slate-200', border: 'border-slate-600' },
+            { status: TaskStatus.TEST, label: 'DA TESTARE', color: 'text-orange-400', border: 'border-orange-700' },
+            { status: TaskStatus.DONE, label: 'COMPLETATO', color: 'text-green-400', border: 'border-green-700' }
+        ];
+        return (
+          <div className="max-w-5xl mx-auto pb-20">
+            <div className="space-y-8">
+                {groups.map(group => {
+                const groupTasks = activeTasks.filter(t => t.status === group.status);
+                const isCollapsed = collapsedGroups[group.status];
+                return (
+                    <div key={group.status} onDragOver={onDragOver} onDrop={(e) => onDropToStatus(e, group.status)} className="rounded-xl min-h-[50px]">
+                    <h3 onClick={() => toggleGroup(group.status)} className={`text-sm font-bold ${group.color} uppercase tracking-wider mb-3 px-1 flex items-center gap-2 border-b ${group.border} pb-2 cursor-pointer hover:bg-slate-800/50 rounded-t transition-colors select-none`}>
+                        {isCollapsed ? <ChevronRight size={18} /> : <ChevronDown size={18} />}
+                        {group.label} <span className="bg-slate-800 text-slate-400 px-2 py-0.5 rounded-full text-[10px]">{groupTasks.length}</span>
+                    </h3>
+                    <SmoothCollapse isOpen={!isCollapsed}>
+                        <div className="space-y-2">
+                            {groupTasks.map(task => (
+                            <TaskItem key={task.id} task={task} viewMode="LIST" isSelected={selectedTaskIds.has(task.id)} onToggleSelection={() => toggleTaskSelection(task.id)} onCycleStatus={cycleStatus} onCyclePriority={cyclePriority} onUpdateTitle={(t, val) => updateTask(t.id, { title: val })} onUpdateDescription={(t, val) => updateTask(t.id, { description: val })} onEdit={setEditingTask} onDelete={deleteTask} onDragStart={onDragStart} />
+                            ))}
+                            {groupTasks.length === 0 && <div className="text-slate-600 text-xs italic p-4 text-center border border-dashed border-slate-800 rounded-lg">Nessun task in questa lista.</div>}
+                        </div>
+                    </SmoothCollapse>
+                    </div>
+                );
+                })}
             </div>
-          );
-        })}
-      </div>
-    );
+            {!hasSections && (
+                <div className="pt-8 border-t border-slate-800 flex justify-center mt-8">
+                     <button onClick={addSection} className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-primary/20 hover:text-primary rounded-lg text-sm text-slate-400 transition-colors border border-dashed border-slate-700">
+                         <LayoutTemplate size={16} /> Attiva vista a Sezioni (Container)
+                     </button>
+                </div>
+            )}
+          </div>
+        );
+    } else {
+        // --- SECTIONS VIEW ---
+        
+        // Multi-Select Filter Logic
+        const sections = (activeProject.sections || []).filter(s => 
+            selectedContainerIds.size === 0 || selectedContainerIds.has(s.id)
+        );
+
+        // Tasks without section or with invalid section id
+        // Only show uncategorized if NO filter is selected, OR if we strictly want to filter by sections only, we might hide it.
+        // Let's hide Uncategorized if specific sections are selected, unless we want to treat "Uncategorized" as a section.
+        // For now: Show Uncategorized only if NO filter is active.
+        const showUncategorized = selectedContainerIds.size === 0;
+        const uncategorizedTasks = activeTasks.filter(t => !t.sectionId || !activeProject.sections?.find(s => s.id === t.sectionId));
+        
+        return (
+            <div className="max-w-5xl mx-auto pb-20">
+                <div className="space-y-6">
+                    {/* 1. SECTIONS */}
+                    {sections.map(section => {
+                        const sectionTasks = activeTasks.filter(t => t.sectionId === section.id);
+                        const isEditing = editingSectionId === section.id;
+                        const isCollapsed = collapsedSections.has(section.id);
+
+                        return (
+                            <div 
+                                key={section.id}
+                                onDragOver={onDragOver}
+                                onDrop={(e) => onDropToSection(e, section.id)} 
+                                className="rounded-xl min-h-[40px] border border-transparent hover:border-slate-800/50 transition-colors"
+                            >
+                                <div className="flex items-center justify-between border-b border-slate-700/50 pb-2 mb-3 select-none">
+                                    <div className="flex items-center gap-2 cursor-pointer" onClick={() => toggleSection(section.id)}>
+                                        <div className="p-1 rounded hover:bg-slate-800 text-slate-500">
+                                            {isCollapsed ? <ChevronRight size={18} /> : <ChevronDown size={18} />}
+                                        </div>
+                                        {isEditing ? (
+                                            <form onClick={e => e.stopPropagation()} onSubmit={(e) => { e.preventDefault(); renameSection(section.id, newSectionName); }}>
+                                                <input 
+                                                    autoFocus
+                                                    type="text" 
+                                                    value={newSectionName}
+                                                    onChange={(e) => setNewSectionName(e.target.value)}
+                                                    onBlur={() => renameSection(section.id, newSectionName)}
+                                                    className="bg-slate-800 text-white px-2 py-1 rounded text-sm font-bold outline-none border border-primary"
+                                                />
+                                            </form>
+                                        ) : (
+                                            <h3 className="text-base font-bold text-slate-200 flex items-center gap-2">
+                                                <FolderPlus size={16} className="text-slate-500" />
+                                                {section.name}
+                                            </h3>
+                                        )}
+                                        <span className="bg-slate-800 text-slate-400 px-2 py-0.5 rounded-full text-[10px]">{sectionTasks.length}</span>
+                                    </div>
+                                    <div className="flex items-center gap-1 opacity-50 hover:opacity-100 transition-opacity">
+                                        <button onClick={() => { setEditingSectionId(section.id); setNewSectionName(section.name); }} className="p-1.5 hover:bg-slate-700 rounded text-slate-400"><Pencil size={14}/></button>
+                                        <button onClick={() => deleteSection(section.id)} className="p-1.5 hover:bg-red-900/30 hover:text-red-400 rounded text-slate-400"><Trash2 size={14}/></button>
+                                    </div>
+                                </div>
+
+                                {/* SECTION CONTENT (Collapsible) */}
+                                <SmoothCollapse isOpen={!isCollapsed}>
+                                    <div className="space-y-4 pl-2">
+                                        {[TaskStatus.TODO, TaskStatus.TEST, TaskStatus.DONE].map(status => {
+                                            const tasksInStatus = sectionTasks.filter(t => t.status === status);
+                                            if (tasksInStatus.length === 0) {
+                                                if (sectionTasks.length === 0 && status === TaskStatus.TODO) {
+                                                    return (
+                                                         <div key={status} className="text-slate-700 text-xs italic p-4 text-center border border-dashed border-slate-800/50 rounded-lg">
+                                                            Nessun task in questa sezione.
+                                                        </div>
+                                                    );
+                                                }
+                                                return null;
+                                            }
+                                            
+                                            const isSubCollapsed = isSectionStatusCollapsed(section.id, status);
+                                            const statusColor = {
+                                                [TaskStatus.TODO]: 'border-slate-600 text-slate-400',
+                                                [TaskStatus.TEST]: 'border-orange-600 text-orange-400',
+                                                [TaskStatus.DONE]: 'border-green-600 text-green-400'
+                                            }[status];
+
+                                            return (
+                                                <div 
+                                                    key={status}
+                                                    onDragOver={onDragOver}
+                                                    onDrop={(e) => onDropToSectionAndStatus(e, section.id, status)}
+                                                    className={`pl-3 border-l-2 ${statusColor.split(' ')[0]}`}
+                                                >
+                                                    <div 
+                                                        className={`text-[10px] font-bold ${statusColor.split(' ')[1]} uppercase tracking-wider mb-2 flex items-center gap-1 cursor-pointer select-none`}
+                                                        onClick={() => toggleSectionStatus(section.id, status)}
+                                                    >
+                                                        {isSubCollapsed ? <ChevronRight size={12}/> : <ChevronDown size={12}/>}
+                                                        {status} <span className="text-slate-600 ml-1">({tasksInStatus.length})</span>
+                                                    </div>
+                                                    
+                                                    <SmoothCollapse isOpen={!isSubCollapsed}>
+                                                        <div className="space-y-2">
+                                                            {tasksInStatus.map(task => (
+                                                                <TaskItem key={task.id} task={task} viewMode="LIST" isSelected={selectedTaskIds.has(task.id)} onToggleSelection={() => toggleTaskSelection(task.id)} onCycleStatus={cycleStatus} onCyclePriority={cyclePriority} onUpdateTitle={(t, val) => updateTask(t.id, { title: val })} onUpdateDescription={(t, val) => updateTask(t.id, { description: val })} onEdit={setEditingTask} onDelete={deleteTask} onDragStart={onDragStart} />
+                                                            ))}
+                                                        </div>
+                                                    </SmoothCollapse>
+                                                </div>
+                                            );
+                                        })}
+
+                                        {/* Quick Add in Section */}
+                                        <button 
+                                            onClick={() => handleAddToSection(section.id)}
+                                            className="w-full py-2 flex items-center justify-center gap-2 text-xs text-slate-500 hover:text-primary hover:bg-slate-800/50 rounded-lg border border-dashed border-slate-800 hover:border-primary/30 transition-all group mt-2"
+                                        >
+                                            <Plus size={14} className="group-hover:scale-110 transition-transform" /> Aggiungi task a {section.name}
+                                        </button>
+                                    </div>
+                                </SmoothCollapse>
+                            </div>
+                        );
+                    })}
+
+                    {/* 2. UNCATEGORIZED (Senza Sezione) */}
+                    {showUncategorized && uncategorizedTasks.length > 0 && (
+                    <div 
+                        onDragOver={onDragOver}
+                        onDrop={(e) => onDropToSection(e, undefined)} 
+                        className="rounded-xl min-h-[50px] opacity-80 mt-8"
+                    >
+                        <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-3 px-1 flex items-center gap-2 border-b border-slate-800 pb-2">
+                            <LayoutTemplate size={16} /> Senza Sezione <span className="bg-slate-800 text-slate-400 px-2 py-0.5 rounded-full text-[10px]">{uncategorizedTasks.length}</span>
+                        </h3>
+                        <div className="space-y-4">
+                            {[TaskStatus.TODO, TaskStatus.TEST, TaskStatus.DONE].map(status => {
+                                    const tasksInStatus = uncategorizedTasks.filter(t => t.status === status);
+                                    if (tasksInStatus.length === 0) return null;
+                                    return (
+                                        <div key={status} onDragOver={onDragOver} onDrop={(e) => onDropToSectionAndStatus(e, null, status)} className="space-y-2">
+                                            {tasksInStatus.map(task => (
+                                            <TaskItem key={task.id} task={task} viewMode="LIST" isSelected={selectedTaskIds.has(task.id)} onToggleSelection={() => toggleTaskSelection(task.id)} onCycleStatus={cycleStatus} onCyclePriority={cyclePriority} onUpdateTitle={(t, val) => updateTask(t.id, { title: val })} onUpdateDescription={(t, val) => updateTask(t.id, { description: val })} onEdit={setEditingTask} onDelete={deleteTask} onDragStart={onDragStart} />
+                                            ))}
+                                        </div>
+                                    )
+                            })}
+                        </div>
+                    </div>
+                    )}
+
+                    <div className="pt-8 border-t border-slate-800 flex justify-center">
+                        <button onClick={addSection} className="flex items-center gap-2 px-4 py-2 bg-primary hover:bg-blue-600 text-white rounded-lg text-sm font-bold transition-colors shadow-lg shadow-blue-900/20">
+                            <FolderPlus size={18} /> Aggiungi Nuova Sezione
+                        </button>
+                    </div>
+                </div>
+            </div>
+        );
+    }
   };
 
   return (
@@ -1655,9 +1609,9 @@ export default function App() {
               </button>
             )}
             
-            {/* Project Switcher logic when sidebar is closed */}
+            {/* Project Switcher */}
             {!isSidebarOpen && projects.length > 0 ? (
-                <div className="relative z-30">
+                <div className="relative z-50">
                     <button 
                         onClick={() => setIsProjectMenuOpen(!isProjectMenuOpen)}
                         className="flex items-center gap-3 px-1 py-1 rounded-lg hover:bg-slate-800/50 transition-colors group"
@@ -1744,7 +1698,61 @@ export default function App() {
           </div>
 
           {activeProject && (
-              <div className="relative w-64 lg:w-72 hidden sm:block shrink-0 mx-2">
+            <>
+               {/* Container Filters - MULTI SELECT DROPDOWN */}
+               {viewMode === 'LIST' && hasSections && (
+                 <div className="hidden md:flex items-center gap-2 relative">
+                    <button 
+                        onClick={() => setIsContainerFilterOpen(!isContainerFilterOpen)}
+                        className={`flex items-center gap-2 px-2 py-1.5 rounded-lg border text-xs font-medium transition-all ${selectedContainerIds.size > 0 ? 'bg-primary/20 border-primary/40 text-primary' : 'bg-slate-900/50 border-slate-800/50 text-slate-400 hover:text-slate-200'}`}
+                    >
+                        <Filter size={14} />
+                        {selectedContainerIds.size > 0 ? `${selectedContainerIds.size} Filtri` : 'Tutti i container'}
+                        <ChevronDown size={12} />
+                    </button>
+                    
+                    {/* Filter Dropdown */}
+                    {isContainerFilterOpen && (
+                        <>
+                         <div className="fixed inset-0 z-20" onClick={() => setIsContainerFilterOpen(false)}></div>
+                         <div className="absolute top-full left-0 mt-2 w-64 bg-surface border border-slate-700/50 rounded-xl shadow-2xl p-2 z-30 flex flex-col gap-2 animate-in fade-in zoom-in-95 origin-top-left">
+                             <div className="relative">
+                                <Search className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-500" size={12} />
+                                <input 
+                                    autoFocus
+                                    type="text"
+                                    value={containerDropdownSearch}
+                                    onChange={(e) => setContainerDropdownSearch(e.target.value)}
+                                    placeholder="Cerca container..."
+                                    className="w-full bg-slate-900 border border-slate-700 rounded-lg pl-7 pr-2 py-1.5 text-xs text-white focus:border-primary focus:outline-none"
+                                />
+                             </div>
+                             <div className="max-h-48 overflow-y-auto custom-scrollbar space-y-1">
+                                {(activeProject.sections || []).filter(s => s.name.toLowerCase().includes(containerDropdownSearch.toLowerCase())).map(s => (
+                                    <button
+                                        key={s.id}
+                                        onClick={() => toggleContainerSelection(s.id)}
+                                        className="w-full text-left px-2 py-1.5 rounded hover:bg-slate-800 text-xs text-slate-300 flex items-center gap-2 group/item"
+                                    >
+                                        <div className={`transition-colors ${selectedContainerIds.has(s.id) ? 'text-primary' : 'text-slate-600 group-hover/item:text-slate-400'}`}>
+                                            {selectedContainerIds.has(s.id) ? <CheckSquare size={14}/> : <Square size={14}/>}
+                                        </div>
+                                        <span className="truncate flex-1">{s.name}</span>
+                                    </button>
+                                ))}
+                             </div>
+                             {selectedContainerIds.size > 0 && (
+                                 <button onClick={() => setSelectedContainerIds(new Set())} className="text-xs text-center py-1 text-slate-500 hover:text-white border-t border-slate-700 pt-2">
+                                     Deseleziona tutto
+                                 </button>
+                             )}
+                         </div>
+                        </>
+                    )}
+                 </div>
+               )}
+
+              <div className="relative w-64 hidden xl:block shrink-0 mx-2">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
                   <input 
                     ref={searchInputRef}
@@ -1770,9 +1778,30 @@ export default function App() {
                      )}
                   </div>
               </div>
+            </>
           )}
 
           <div className="flex items-center gap-2 bg-slate-900 p-1 rounded-lg border border-slate-800 shrink-0 ml-2">
+            {/* View Mode Toggles */}
+            {viewMode === 'LIST' && hasSections && (
+                <div className="flex bg-slate-800 rounded mr-2 p-0.5">
+                    <button 
+                       onClick={() => setGroupByContainer(true)}
+                       className={`p-1 rounded text-[10px] font-bold transition-all ${groupByContainer ? 'bg-primary text-white' : 'text-slate-400 hover:text-slate-200'}`}
+                       title="Raggruppa per Container"
+                    >
+                       <Layers size={14}/>
+                    </button>
+                    <button 
+                       onClick={() => setGroupByContainer(false)}
+                       className={`p-1 rounded text-[10px] font-bold transition-all ${!groupByContainer ? 'bg-primary text-white' : 'text-slate-400 hover:text-slate-200'}`}
+                       title="Raggruppa per Stato"
+                    >
+                       <ListTodo size={14}/>
+                    </button>
+                </div>
+            )}
+            
             <button 
               onClick={() => setViewMode('LIST')}
               className={`p-1.5 rounded-md transition-all ${viewMode === 'LIST' ? 'bg-slate-700 text-white shadow-sm' : 'text-slate-500 hover:text-slate-300'}`}
@@ -1806,69 +1835,98 @@ export default function App() {
              </div>
         )}
 
-        {/* Improved Input Area */}
-        {activeProject && (
-          <div className="p-4 md:p-6 pb-2 shrink-0 z-20">
-            <div className="max-w-5xl mx-auto relative bg-surface border border-slate-700 rounded-xl shadow-lg p-3">
-              <form onSubmit={handleQuickAdd} className="flex flex-col gap-2">
-                <textarea
-                  ref={titleTextareaRef}
-                  value={newTaskTitle}
-                  onChange={(e) => setNewTaskTitle(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  placeholder="Titolo Task (Enter per inviare)..."
-                  rows={1}
-                  className="w-full bg-slate-900/50 border-b border-transparent focus:border-primary/50 rounded-t px-3 py-2 text-slate-100 placeholder-slate-400 focus:outline-none transition-all resize-none font-medium"
-                />
-                
-                <div className="flex gap-2">
-                    <textarea
-                        id="newTaskDesc"
-                        value={newTaskDesc}
-                        onChange={(e) => setNewTaskDesc(e.target.value)}
-                        onKeyDown={(e) => {
-                             if (e.key === 'Enter' && e.shiftKey) { /* Allow newline */ } 
-                             else if (e.key === 'Enter') { e.preventDefault(); handleQuickAdd(e); }
-                        }}
-                        placeholder="Note aggiuntive (Shift+Enter per a capo)..."
-                        rows={1}
-                        className="flex-1 bg-slate-900/30 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-300 placeholder-slate-600 focus:outline-none focus:border-slate-500 resize-none min-h-[38px]"
-                    />
-                    
-                    {(newTaskTitle || newTaskDesc) && (
-                        <button 
-                            type="button"
-                            onClick={handleClearInput}
-                            className="px-3 py-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors flex items-center gap-1 text-xs font-medium border border-transparent hover:border-slate-700"
-                            title="Svuota campi"
-                        >
-                            <Eraser size={16} />
-                        </button>
-                    )}
-
-                    <button 
-                        type="button"
-                        onClick={() => setAiModalOpen(true)}
-                        className="px-3 py-2 text-purple-400 hover:bg-purple-500/10 rounded-lg transition-colors flex items-center gap-1 text-xs font-medium border border-slate-700 hover:border-purple-500/30"
-                        title="Genera con AI"
-                    >
-                        <Sparkles size={16} />
-                    </button>
-                    <button 
-                        type="submit" 
-                        disabled={!newTaskTitle.trim()}
-                        className="bg-primary hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition-colors disabled:opacity-50 disabled:hover:bg-primary shadow-md flex items-center justify-center"
-                    >
-                        <Plus size={20} />
-                    </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
-
         {/* Content View */}
         <div className="flex-1 overflow-x-hidden overflow-y-auto p-4 md:p-6 custom-scrollbar pb-24">
+           {/* Improved Input Area (Now Inside Scrollable & COMPACT) */}
+           {activeProject && (
+             <div className="max-w-5xl mx-auto relative bg-surface border border-slate-700 rounded-xl shadow-lg p-2 mb-6">
+               <form onSubmit={handleQuickAdd} className="flex flex-col gap-2">
+                 
+                 {/* Main Row: Input + Actions */}
+                 <div className="flex items-center gap-2">
+                     <div className="flex-1 flex items-center bg-slate-900/50 border border-transparent focus-within:border-primary/50 rounded-lg px-3 transition-all relative">
+                         {targetSectionId && (
+                             <span className="flex items-center gap-1 bg-primary/20 text-primary text-[10px] font-bold px-2 py-0.5 rounded-full mr-2 shrink-0 select-none">
+                                 In: {activeProject.sections?.find(s => s.id === targetSectionId)?.name || '...'}
+                                 <button type="button" onClick={() => setTargetSectionId(null)} className="hover:text-white"><X size={10}/></button>
+                             </span>
+                         )}
+                         <input
+                           ref={newTaskInputRef}
+                           type="text"
+                           value={newTaskTitle}
+                           onChange={(e) => setNewTaskTitle(e.target.value)}
+                           onKeyDown={(e) => {
+                               if (e.key === 'Enter') {
+                                   handleQuickAdd(e);
+                               }
+                           }}
+                           placeholder="Nuovo Task..."
+                           className="flex-1 bg-transparent border-none py-2 text-slate-100 placeholder-slate-400 focus:outline-none text-sm font-medium h-9"
+                         />
+                     </div>
+
+                     {/* Action Buttons */}
+                     <div className="flex items-center gap-1">
+                         <button 
+                             type="button"
+                             onClick={() => setShowTaskDescInput(!showTaskDescInput)}
+                             className={`p-2 rounded-lg transition-colors flex items-center justify-center ${showTaskDescInput ? 'bg-slate-700 text-white' : 'text-slate-500 hover:text-white hover:bg-slate-800'}`}
+                             title="Aggiungi Note"
+                         >
+                             <FileText size={16} />
+                         </button>
+                         
+                         {(newTaskTitle || newTaskDesc) && (
+                             <button 
+                                 type="button"
+                                 onClick={handleClearInput}
+                                 className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors"
+                                 title="Svuota tutto"
+                             >
+                                 <Eraser size={16} />
+                             </button>
+                         )}
+
+                         <button 
+                             type="button"
+                             onClick={() => setAiModalOpen(true)}
+                             className="p-2 text-purple-400 hover:bg-purple-500/10 rounded-lg transition-colors"
+                             title="Genera con AI"
+                         >
+                             <Sparkles size={16} />
+                         </button>
+                         
+                         <button 
+                             type="submit" 
+                             disabled={!newTaskTitle.trim()}
+                             className="bg-primary hover:bg-blue-600 text-white p-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-md flex items-center justify-center"
+                         >
+                             <Plus size={20} />
+                         </button>
+                     </div>
+                 </div>
+
+                 {/* Collapsible Description Input */}
+                 {showTaskDescInput && (
+                     <div className="animate-in slide-in-from-top-2">
+                        <textarea
+                             id="newTaskDesc"
+                             value={newTaskDesc}
+                             onChange={(e) => setNewTaskDesc(e.target.value)}
+                             onKeyDown={(e) => {
+                                  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleQuickAdd(e); }
+                             }}
+                             placeholder="Note aggiuntive..."
+                             rows={2}
+                             className="w-full bg-slate-900/30 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-300 placeholder-slate-600 focus:outline-none focus:border-slate-500 resize-none"
+                         />
+                     </div>
+                 )}
+               </form>
+             </div>
+           )}
+
            {viewMode === 'LIST' ? (
              renderListView()
            ) : (
@@ -1882,8 +1940,6 @@ export default function App() {
         
         {/* Bulk Action Bar */}
         {selectedTaskIds.size > 0 && (
-          // FIX CRITICO: Rimosso onMouseDown={(e) => e.stopPropagation()} da qui
-          // Altrimenti il click sui pulsanti figli non funziona correttamente in alcuni browser
           <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-slate-900/90 backdrop-blur-md border border-slate-700 rounded-2xl shadow-2xl p-2 px-4 flex items-center gap-3 animate-in slide-in-from-bottom-6 z-40 max-w-[90vw] no-drag">
               <div className="flex items-center gap-2 border-r border-slate-700 pr-3 mr-1">
                   <div className="bg-primary text-white text-xs font-bold rounded-md w-6 h-6 flex items-center justify-center">
@@ -1923,7 +1979,7 @@ export default function App() {
 
               <button 
                   type="button"
-                  // CRITICAL FIX: Stop propagation to prevent drag events or losing focus
+                  // Stop propagation to prevent drag events or losing focus
                   onClick={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
@@ -1980,6 +2036,51 @@ export default function App() {
                             Elimina
                         </button>
                     </div>
+                </div>
+            </div>
+        )}
+
+        {isSectionModalOpen && (
+            <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                <div className="bg-surface border border-slate-700 rounded-2xl w-full max-w-sm shadow-2xl animate-in fade-in zoom-in-95">
+                    <div className="p-4 border-b border-slate-700/50 flex justify-between items-center bg-slate-900/50 rounded-t-2xl">
+                        <h3 className="font-bold text-white flex items-center gap-2">
+                            <FolderPlus size={18} className="text-primary" />
+                            Nuova Sezione
+                        </h3>
+                        <button onClick={() => setIsSectionModalOpen(false)} className="text-slate-400 hover:text-white transition-colors">
+                            <X size={18} />
+                        </button>
+                    </div>
+                    <form onSubmit={handleCreateSection} className="p-4 flex flex-col gap-4">
+                        <div>
+                            <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Nome Sezione</label>
+                            <input 
+                                autoFocus
+                                type="text" 
+                                value={sectionModalName}
+                                onChange={(e) => setSectionModalName(e.target.value)}
+                                placeholder="Es. Backlog, Sprint 1, Marketing..."
+                                className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-sm text-white focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/50"
+                            />
+                        </div>
+                        <div className="flex justify-end gap-2 pt-2">
+                            <button 
+                                type="button" 
+                                onClick={() => setIsSectionModalOpen(false)} 
+                                className="px-3 py-2 text-xs font-medium text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors"
+                            >
+                                Annulla
+                            </button>
+                            <button 
+                                type="submit" 
+                                disabled={!sectionModalName.trim()}
+                                className="px-4 py-2 bg-primary hover:bg-blue-600 text-white text-xs font-bold rounded-lg transition-all shadow-lg shadow-blue-900/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                            >
+                                <Plus size={14} /> Crea Sezione
+                            </button>
+                        </div>
+                    </form>
                 </div>
             </div>
         )}
