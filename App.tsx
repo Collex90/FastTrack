@@ -1109,6 +1109,21 @@ export default function App() {
       setSelectedTaskIds(new Set());
   };
 
+  const handleBulkMoveToSection = async (sectionId: string | null) => {
+      const ids = Array.from(selectedTaskIds);
+      if (isFirebaseConfigured && db) {
+          const batch = writeBatch(db);
+          ids.forEach(id => {
+              const ref = doc(db!, "tasks", id);
+              batch.update(ref, { sectionId: sectionId });
+          });
+          await batch.commit();
+      } else {
+          saveLocalTasks(tasks.map(t => selectedTaskIds.has(t.id) ? { ...t, sectionId: sectionId || undefined } : t));
+      }
+      setSelectedTaskIds(new Set());
+  };
+
   const handleQuickAdd = (e: React.FormEvent) => {
     e.preventDefault();
     // Default to targetSectionId or null
@@ -1469,24 +1484,60 @@ export default function App() {
                     <div 
                         onDragOver={onDragOver}
                         onDrop={(e) => onDropToSection(e, undefined)} 
-                        className="rounded-xl min-h-[50px] opacity-80 mt-8"
+                        className="rounded-xl min-h-[50px] mt-8 border border-transparent hover:border-slate-800/50 transition-colors"
                     >
-                        <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-3 px-1 flex items-center gap-2 border-b border-slate-800 pb-2">
-                            <LayoutTemplate size={16} /> Senza Sezione <span className="bg-slate-800 text-slate-400 px-2 py-0.5 rounded-full text-[10px]">{uncategorizedTasks.length}</span>
-                        </h3>
-                        <div className="space-y-4">
-                            {[TaskStatus.TODO, TaskStatus.TEST, TaskStatus.DONE].map(status => {
-                                    const tasksInStatus = uncategorizedTasks.filter(t => t.status === status);
-                                    if (tasksInStatus.length === 0) return null;
-                                    return (
-                                        <div key={status} onDragOver={onDragOver} onDrop={(e) => onDropToSectionAndStatus(e, null, status)} className="space-y-2">
-                                            {tasksInStatus.map(task => (
-                                            <TaskItem key={task.id} task={task} viewMode="LIST" isSelected={selectedTaskIds.has(task.id)} onToggleSelection={() => toggleTaskSelection(task.id)} onCycleStatus={cycleStatus} onCyclePriority={cyclePriority} onUpdateTitle={(t, val) => updateTask(t.id, { title: val })} onUpdateDescription={(t, val) => updateTask(t.id, { description: val })} onEdit={setEditingTask} onDelete={deleteTask} onDragStart={onDragStart} />
-                                            ))}
-                                        </div>
-                                    )
-                            })}
+                        <div className="flex items-center justify-between border-b border-slate-700/50 pb-2 mb-3 select-none">
+                             <div className="flex items-center gap-2 cursor-pointer" onClick={() => toggleSection('uncategorized')}>
+                                <div className="p-1 rounded hover:bg-slate-800 text-slate-500">
+                                    {collapsedSections.has('uncategorized') ? <ChevronRight size={18} /> : <ChevronDown size={18} />}
+                                </div>
+                                <h3 className="text-base font-bold text-slate-400 flex items-center gap-2">
+                                    <LayoutTemplate size={16} />
+                                    Senza Sezione
+                                </h3>
+                                <span className="bg-slate-800 text-slate-400 px-2 py-0.5 rounded-full text-[10px]">{uncategorizedTasks.length}</span>
+                             </div>
                         </div>
+
+                        <SmoothCollapse isOpen={!collapsedSections.has('uncategorized')}>
+                            <div className="space-y-4 pl-2">
+                                {[TaskStatus.TODO, TaskStatus.TEST, TaskStatus.DONE].map(status => {
+                                        const tasksInStatus = uncategorizedTasks.filter(t => t.status === status);
+                                        if (tasksInStatus.length === 0) return null;
+                                        
+                                        const isSubCollapsed = isSectionStatusCollapsed('uncategorized', status);
+                                        const statusColor = {
+                                            [TaskStatus.TODO]: 'border-slate-600 text-slate-400',
+                                            [TaskStatus.TEST]: 'border-orange-600 text-orange-400',
+                                            [TaskStatus.DONE]: 'border-green-600 text-green-400'
+                                        }[status];
+
+                                        return (
+                                            <div 
+                                                key={status} 
+                                                onDragOver={onDragOver} 
+                                                onDrop={(e) => onDropToSectionAndStatus(e, null, status)} 
+                                                className={`pl-3 border-l-2 ${statusColor.split(' ')[0]}`}
+                                            >
+                                                <div 
+                                                    className={`text-[10px] font-bold ${statusColor.split(' ')[1]} uppercase tracking-wider mb-2 flex items-center gap-1 cursor-pointer select-none`}
+                                                    onClick={() => toggleSectionStatus('uncategorized', status)}
+                                                >
+                                                    {isSubCollapsed ? <ChevronRight size={12}/> : <ChevronDown size={12}/>}
+                                                    {status} <span className="text-slate-600 ml-1">({tasksInStatus.length})</span>
+                                                </div>
+                                                <SmoothCollapse isOpen={!isSubCollapsed}>
+                                                    <div className="space-y-2">
+                                                        {tasksInStatus.map(task => (
+                                                        <TaskItem key={task.id} task={task} viewMode="LIST" isSelected={selectedTaskIds.has(task.id)} onToggleSelection={() => toggleTaskSelection(task.id)} onCycleStatus={cycleStatus} onCyclePriority={cyclePriority} onUpdateTitle={(t, val) => updateTask(t.id, { title: val })} onUpdateDescription={(t, val) => updateTask(t.id, { description: val })} onEdit={setEditingTask} onDelete={deleteTask} onDragStart={onDragStart} />
+                                                        ))}
+                                                    </div>
+                                                </SmoothCollapse>
+                                            </div>
+                                        )
+                                })}
+                            </div>
+                        </SmoothCollapse>
                     </div>
                     )}
 
@@ -1976,6 +2027,32 @@ export default function App() {
               </div>
 
               <div className="h-6 w-px bg-slate-700/50"></div>
+
+              {/* Move To Container Button */}
+              {hasSections && (
+                  <>
+                    <div className="relative group">
+                        <button className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-300 hover:bg-slate-800 rounded-lg transition-colors">
+                            <FolderPlus size={14} />
+                            <span className="hidden sm:inline">Sposta</span>
+                            <ChevronUp size={12} className="text-slate-500" />
+                        </button>
+                        <div className="absolute bottom-full left-0 pb-2 w-48 hidden group-hover:block animate-in fade-in zoom-in-95 z-50">
+                            <div className="bg-surface border border-slate-700 rounded-lg shadow-xl overflow-hidden max-h-64 overflow-y-auto custom-scrollbar">
+                              <button onClick={() => handleBulkMoveToSection(null)} className="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-400 border-b border-slate-700/50 flex items-center gap-2">
+                                  <LayoutTemplate size={12}/> Nessun Container
+                              </button>
+                              {activeProject?.sections?.map(s => (
+                                  <button key={s.id} onClick={() => handleBulkMoveToSection(s.id)} className="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 flex items-center gap-2">
+                                      <FolderPlus size={12}/> {s.name}
+                                  </button>
+                              ))}
+                            </div>
+                        </div>
+                    </div>
+                    <div className="h-6 w-px bg-slate-700/50"></div>
+                  </>
+              )}
 
               <button 
                   type="button"
