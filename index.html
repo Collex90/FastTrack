@@ -9,14 +9,22 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
       tailwind.config = {
+        darkMode: 'class',
         theme: {
           extend: {
             colors: {
               background: 'var(--bg-app)',
               surface: 'var(--bg-surface)',
+              surfaceHighlight: 'var(--bg-surface-highlight)',
+              sidebar: 'var(--bg-sidebar)',
+              input: 'var(--bg-input)',
+              
               textMain: 'var(--text-main)',
               textMuted: 'var(--text-muted)',
+              textInverted: 'var(--text-inverted)',
+              
               border: 'var(--border-color)',
+              borderHighlight: 'var(--border-highlight)',
               
               primary: '#3b82f6', // Blue 500
               secondary: '#64748b', // Slate 500
@@ -29,21 +37,35 @@
     </script>
     <style>
       :root {
-        /* Default Dark Mode */
-        --bg-app: #0f172a;      /* Slate 900 */
-        --bg-surface: #1e293b;  /* Slate 800 */
-        --text-main: #f8fafc;   /* Slate 50 */
-        --text-muted: #94a3b8;  /* Slate 400 */
-        --border-color: #334155; /* Slate 700 */
+        /* --- DEFAULT DARK MODE (Matches original design) --- */
+        --bg-app: #0f172a;      /* slate-900 */
+        --bg-sidebar: #0f172a;  /* slate-900 */
+        --bg-surface: #1e293b;  /* slate-800 */
+        --bg-surface-highlight: #334155; /* slate-700 */
+        --bg-input: #020617;    /* slate-950 */
+        
+        --text-main: #f8fafc;   /* slate-50 */
+        --text-muted: #94a3b8;  /* slate-400 */
+        --text-inverted: #0f172a; /* slate-900 */
+        
+        --border-color: #334155; /* slate-700 */
+        --border-highlight: #475569; /* slate-600 */
       }
 
       :root.light {
-        /* Light Mode Overrides - High Contrast & Clean */
-        --bg-app: #f1f5f9;      /* Slate 100 - Sfondo generale grigio chiarissimo */
-        --bg-surface: #ffffff;  /* White - Card bianche */
-        --text-main: #0f172a;   /* Slate 900 - Testo quasi nero */
-        --text-muted: #64748b;  /* Slate 500 - Testo secondario */
-        --border-color: #cbd5e1; /* Slate 300 - Bordi definiti */
+        /* --- LIGHT MODE (Professional High Contrast) --- */
+        --bg-app: #f1f5f9;      /* slate-100 - Distinct from white surface */
+        --bg-sidebar: #ffffff;  /* white */
+        --bg-surface: #ffffff;  /* white */
+        --bg-surface-highlight: #e2e8f0; /* slate-200 - Visible hover state */
+        --bg-input: #ffffff;    /* white */
+        
+        --text-main: #0f172a;   /* slate-900 - Sharp dark text */
+        --text-muted: #64748b;  /* slate-500 - Readable grey */
+        --text-inverted: #ffffff; /* white */
+        
+        --border-color: #cbd5e1; /* slate-300 - clearly defined borders */
+        --border-highlight: #94a3b8; /* slate-400 */
       }
 
       body {
@@ -57,7 +79,7 @@
         height: 8px;
       }
       ::-webkit-scrollbar-track {
-        background: var(--bg-surface); 
+        background: transparent; 
       }
       ::-webkit-scrollbar-thumb {
         background: var(--border-color); 

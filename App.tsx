@@ -53,7 +53,9 @@ import {
   Eye,
   EyeOff,
   FileText,
-  AlignLeft
+  AlignLeft,
+  Sun,
+  Moon
 } from 'lucide-react';
 import { Project, Task, TaskStatus, TaskPriority, ViewMode, Section } from './types';
 import { generateTasksFromInput } from './services/geminiService';
@@ -112,10 +114,11 @@ const FastTrackLogo = ({ className = "w-8 h-8", iconSize = 20 }: { className?: s
 );
 
 const PriorityBadge = ({ priority, onClick }: { priority: TaskPriority; onClick?: () => void }) => {
+  // Styles logic: Light mode (High contrast/Pastel) vs Dark mode (Neon/Transparent)
   const styles = {
-    [TaskPriority.LOW]: 'text-slate-400 hover:bg-slate-800',
-    [TaskPriority.MEDIUM]: 'text-yellow-500 hover:bg-yellow-500/10',
-    [TaskPriority.HIGH]: 'text-red-500 hover:bg-red-500/10',
+    [TaskPriority.LOW]: 'bg-slate-100 text-slate-600 border border-slate-200 dark:bg-transparent dark:text-textMuted dark:border-transparent hover:bg-slate-200 dark:hover:bg-surfaceHighlight',
+    [TaskPriority.MEDIUM]: 'bg-amber-50 text-amber-700 border border-amber-200 dark:bg-transparent dark:text-yellow-500 dark:border-transparent hover:bg-amber-100 dark:hover:bg-yellow-500/10',
+    [TaskPriority.HIGH]: 'bg-red-50 text-red-700 border border-red-200 dark:bg-transparent dark:text-red-500 dark:border-transparent hover:bg-red-100 dark:hover:bg-red-500/10',
   };
 
   const icons = {
@@ -137,10 +140,11 @@ const PriorityBadge = ({ priority, onClick }: { priority: TaskPriority; onClick?
 };
 
 const StatusBadge = ({ status, onClick }: { status: TaskStatus; onClick?: () => void }) => {
+  // Styles logic: Light mode (Pastel backgrounds) vs Dark mode (Dark translucent backgrounds)
   const styles = {
-    [TaskStatus.TODO]: 'bg-slate-700 text-slate-300 border-slate-600 hover:bg-slate-600',
-    [TaskStatus.TEST]: 'bg-orange-900/40 text-orange-400 border-orange-700/50 hover:bg-orange-900/60',
-    [TaskStatus.DONE]: 'bg-green-900/30 text-green-400 border-green-700/50 hover:bg-green-900/50',
+    [TaskStatus.TODO]: 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200 dark:bg-surfaceHighlight dark:text-textMuted dark:border-border dark:hover:bg-border',
+    [TaskStatus.TEST]: 'bg-orange-50 text-orange-700 border-orange-200 hover:bg-orange-100 dark:bg-orange-900/40 dark:text-orange-400 dark:border-orange-700/50 dark:hover:bg-orange-900/60',
+    [TaskStatus.DONE]: 'bg-green-50 text-green-700 border-green-200 hover:bg-green-100 dark:bg-green-900/30 dark:text-green-400 dark:border-green-700/50 dark:hover:bg-green-900/50',
   };
 
   const icons = {
@@ -152,7 +156,7 @@ const StatusBadge = ({ status, onClick }: { status: TaskStatus; onClick?: () => 
   return (
     <button
       onClick={(e) => { e.stopPropagation(); onClick && onClick(); }}
-      className={`flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium border ${styles[status]} transition-all no-drag`}
+      className={`flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium border ${styles[status]} transition-all no-drag shadow-sm dark:shadow-none`}
     >
       {icons[status]}
       {status}
@@ -220,7 +224,7 @@ const InlineEditableText = React.forwardRef<HTMLTextAreaElement, {
         e.preventDefault();
         e.stopPropagation();
       }}
-      className={`w-full bg-transparent border border-transparent rounded px-1 -ml-1 resize-none overflow-hidden focus:bg-slate-800 focus:border-slate-600 focus:outline-none focus:ring-1 focus:ring-primary transition-all whitespace-pre-wrap break-words cursor-text pointer-events-auto no-drag ${isDone ? 'text-slate-500 line-through' : 'text-slate-200'} ${className}`}
+      className={`w-full bg-transparent border border-transparent rounded px-1 -ml-1 resize-none overflow-hidden focus:bg-input focus:border-borderHighlight focus:outline-none focus:ring-1 focus:ring-primary/50 transition-all whitespace-pre-wrap break-words cursor-text pointer-events-auto no-drag ${isDone ? 'text-textMuted line-through' : 'text-textMain'} ${className}`}
       // Native events to stop propagation
       onMouseDown={(e) => e.stopPropagation()}
       onPointerDown={(e) => e.stopPropagation()}
@@ -244,7 +248,7 @@ const CollapsibleDescription = ({ text, onUpdate }: { text: string, onUpdate: (v
                 <button 
                     onClick={() => setIsOpen(true)}
                     onPointerDown={(e) => e.stopPropagation()}
-                    className="flex items-center gap-1 text-[10px] text-slate-500 hover:text-primary transition-colors select-none leading-none py-0.5"
+                    className="flex items-center gap-1 text-[10px] text-textMuted hover:text-primary transition-colors select-none leading-none py-0.5"
                 >
                     <ChevronDown size={12} />
                     Mostra note ({text.split('\n')[0].substring(0, 30)}...)
@@ -252,7 +256,7 @@ const CollapsibleDescription = ({ text, onUpdate }: { text: string, onUpdate: (v
             )}
             <SmoothCollapse isOpen={isOpen}>
                 <div 
-                    className="bg-slate-900/50 rounded p-2 border border-slate-800/50 w-full cursor-auto no-drag mt-1"
+                    className="bg-input rounded p-2 border border-border w-full cursor-auto no-drag mt-1 shadow-sm"
                     onMouseDown={(e) => e.stopPropagation()}
                     onPointerDown={(e) => e.stopPropagation()}
                 >
@@ -265,7 +269,7 @@ const CollapsibleDescription = ({ text, onUpdate }: { text: string, onUpdate: (v
                     <InlineEditableText 
                         text={text} 
                         onSave={onUpdate}
-                        className="text-xs text-slate-400 min-h-[60px]"
+                        className="text-xs text-textMuted min-h-[60px]"
                         placeholder="Aggiungi note..."
                     />
                 </div>
@@ -328,9 +332,9 @@ const TaskItem: React.FC<TaskItemProps> = ({
     <div 
       draggable="true"
       onDragStart={handleDragStartInternal}
-      className={`group relative bg-surface rounded-lg border transition-all shadow-sm cursor-grab active:cursor-grabbing ${viewMode === 'LIST' ? 'flex flex-col md:flex-row md:items-start px-3 py-2 mb-1.5' : 'px-3 py-2 mb-1.5 flex flex-col'} ${isSelected ? 'border-primary/60 bg-primary/5' : 'border-slate-700/50 hover:border-primary/40'}`}
+      className={`group relative bg-surface rounded-lg border transition-all shadow-sm dark:shadow-none cursor-grab active:cursor-grabbing ${viewMode === 'LIST' ? 'flex flex-col md:flex-row md:items-start px-3 py-2 mb-1.5' : 'px-3 py-2 mb-1.5 flex flex-col'} ${isSelected ? 'border-primary/60 bg-primary/5' : 'border-border hover:border-primary/40'}`}
     >
-      <div className="absolute left-0.5 top-1/2 -translate-y-1/2 text-slate-700 opacity-0 group-hover:opacity-100 transition-opacity hidden md:block pointer-events-none">
+      <div className="absolute left-0.5 top-1/2 -translate-y-1/2 text-textMuted opacity-0 group-hover:opacity-100 transition-opacity hidden md:block pointer-events-none">
           <GripVertical size={12} />
       </div>
 
@@ -340,7 +344,7 @@ const TaskItem: React.FC<TaskItemProps> = ({
             onClick={(e) => { e.stopPropagation(); onToggleSelection(); }}
             onPointerDown={(e) => e.stopPropagation()}
             onMouseDown={(e) => e.stopPropagation()}
-            className={`mr-3 mt-1 cursor-pointer transition-colors no-drag shrink-0 ${isSelected ? 'text-primary' : 'text-slate-600 hover:text-slate-400'}`}
+            className={`mr-3 mt-1 cursor-pointer transition-colors no-drag shrink-0 ${isSelected ? 'text-primary' : 'text-textMuted hover:text-textMain'}`}
          >
              {isSelected ? <CheckSquare size={16} /> : <Square size={16} />}
          </div>
@@ -360,7 +364,7 @@ const TaskItem: React.FC<TaskItemProps> = ({
             )}
             {viewMode === 'KANBAN' && task.description && (
             <div 
-                className="mt-1 text-[11px] text-slate-500 line-clamp-2 whitespace-pre-wrap leading-tight no-drag cursor-text"
+                className="mt-1 text-[11px] text-textMuted line-clamp-2 whitespace-pre-wrap leading-tight no-drag cursor-text"
                 onPointerDown={(e) => e.stopPropagation()}
                 onMouseDown={(e) => e.stopPropagation()}
             >{task.description}</div>
@@ -368,7 +372,7 @@ const TaskItem: React.FC<TaskItemProps> = ({
          </div>
       </div>
 
-      <div className={`flex items-center justify-between shrink-0 ${viewMode === 'LIST' ? 'gap-3 mt-2 md:mt-0.5 md:self-start md:ml-4' : 'w-full pt-2 border-t border-slate-700/50 mt-1.5'}`}
+      <div className={`flex items-center justify-between shrink-0 ${viewMode === 'LIST' ? 'gap-3 mt-2 md:mt-0.5 md:self-start md:ml-4' : 'w-full pt-2 border-t border-border mt-1.5'}`}
         // Stop propagation on action bar to prevent drag start from empty spaces in toolbar
         onMouseDown={(e) => e.stopPropagation()}
       >
@@ -380,21 +384,21 @@ const TaskItem: React.FC<TaskItemProps> = ({
         <div className={`flex items-center gap-1 transition-opacity no-drag`}>
           <button 
               onClick={handleCopy}
-              className="p-1 text-slate-500 hover:text-green-400 hover:bg-slate-700 rounded transition-colors flex items-center justify-center"
+              className="p-1 text-textMuted hover:text-green-500 hover:bg-surfaceHighlight rounded transition-colors flex items-center justify-center"
               title="Copia Titolo e Note (Inline)"
           >
               {isCopied ? <Check size={13} className="text-green-500" /> : <Copy size={13} />}
           </button>
           <button 
               onClick={() => onEdit(task)}
-              className="p-1 text-slate-500 hover:text-primary hover:bg-slate-700 rounded transition-colors flex items-center justify-center"
+              className="p-1 text-textMuted hover:text-primary hover:bg-surfaceHighlight rounded transition-colors flex items-center justify-center"
               title="Modifica dettaglio"
           >
               <Pencil size={13} />
           </button>
           <button 
               onClick={(e) => { e.stopPropagation(); onDelete(task.id); }} 
-              className="p-1 text-slate-500 hover:text-red-400 hover:bg-slate-700 rounded transition-colors flex items-center justify-center"
+              className="p-1 text-textMuted hover:text-red-500 hover:bg-surfaceHighlight rounded transition-colors flex items-center justify-center"
               title="Elimina"
           >
               <Trash2 size={13} />
@@ -589,34 +593,34 @@ const FirebaseConfigModal = ({
 
     return (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-             <div className="w-full max-w-lg bg-surface border border-slate-700 rounded-2xl p-6 shadow-2xl relative animate-in fade-in zoom-in-95 flex flex-col max-h-[90vh]">
-                <button onClick={onClose} className="absolute top-4 right-4 text-slate-400 hover:text-white"><X size={20}/></button>
+             <div className="w-full max-w-lg bg-surface border border-border rounded-2xl p-6 shadow-2xl relative animate-in fade-in zoom-in-95 flex flex-col max-h-[90vh]">
+                <button onClick={onClose} className="absolute top-4 right-4 text-textMuted hover:text-textMain"><X size={20}/></button>
                 <div className="flex items-center gap-3 mb-6 shrink-0">
                     <div className="w-10 h-10 bg-orange-500/20 text-orange-500 rounded-lg flex items-center justify-center">
                         <Database size={24} />
                     </div>
                     <div>
-                        <h1 className="text-xl font-bold text-white">Configurazione & Dati</h1>
-                        <p className="text-sm text-slate-400">Gestisci connessione cloud e backup</p>
+                        <h1 className="text-xl font-bold text-textMain">Configurazione & Dati</h1>
+                        <p className="text-sm text-textMuted">Gestisci connessione cloud e backup</p>
                     </div>
                 </div>
                 <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 space-y-8">
                     <div className="space-y-4">
-                        <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider border-b border-slate-800 pb-1">Connessione Firebase</h3>
-                        <div className="bg-slate-900 p-4 rounded-xl border border-slate-800">
-                            <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-2">
+                        <h3 className="text-xs font-bold text-textMuted uppercase tracking-wider border-b border-border pb-1">Connessione Firebase</h3>
+                        <div className="bg-input p-4 rounded-xl border border-border">
+                            <label className="text-xs font-bold text-textMuted uppercase tracking-wider mb-2 flex items-center gap-2">
                                 <ClipboardPaste size={14} /> Incolla Configurazione Rapida
                             </label>
                             <textarea
                                 value={pasteInput}
                                 onChange={(e) => setPasteInput(e.target.value)}
                                 placeholder={`const firebaseConfig = {\n  apiKey: "...",\n  ... \n};`}
-                                className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-xs font-mono text-slate-300 focus:border-primary focus:outline-none h-20 resize-none mb-2"
+                                className="w-full bg-surfaceHighlight border border-borderHighlight rounded-lg p-3 text-xs font-mono text-textMain focus:border-primary focus:outline-none h-20 resize-none mb-2"
                             />
                             <button
                                 onClick={handlePasteParse}
                                 disabled={!pasteInput.trim()}
-                                className="w-full py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium rounded border border-slate-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                                className="w-full py-1.5 bg-surfaceHighlight hover:bg-border text-textMuted text-xs font-medium rounded border border-borderHighlight transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
                             >
                                 <ArrowDown size={12} /> Analizza ed Estrai Dati
                             </button>
@@ -625,29 +629,29 @@ const FirebaseConfigModal = ({
                         <div className="grid grid-cols-1 gap-3">
                             {Object.keys(config).map((key) => (
                                 <div key={key}>
-                                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 block">{key}</label>
-                                    <input type="text" name={key} value={(config as any)[key]} onChange={handleChange} className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-sm text-white focus:border-primary focus:outline-none"/>
+                                    <label className="text-[10px] font-bold text-textMuted uppercase tracking-wider mb-1 block">{key}</label>
+                                    <input type="text" name={key} value={(config as any)[key]} onChange={handleChange} className="w-full bg-input border border-borderHighlight rounded p-2 text-sm text-textMain focus:border-primary focus:outline-none"/>
                                 </div>
                             ))}
                         </div>
                     </div>
                     <div className="space-y-4">
-                        <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider border-b border-slate-800 pb-1">Backup e Ripristino</h3>
+                        <h3 className="text-xs font-bold text-textMuted uppercase tracking-wider border-b border-border pb-1">Backup e Ripristino</h3>
                         <div className="grid grid-cols-2 gap-3">
-                            <button onClick={handleBackup} className="flex flex-col items-center justify-center gap-2 p-4 bg-slate-900 border border-slate-700 hover:border-primary/50 hover:bg-slate-800 rounded-xl transition-all group">
-                                <div className="p-2 bg-slate-800 group-hover:bg-primary/20 rounded-full text-slate-400 group-hover:text-primary transition-colors"><Download size={20} /></div>
-                                <span className="text-xs font-bold text-slate-300">Scarica Backup</span>
+                            <button onClick={handleBackup} className="flex flex-col items-center justify-center gap-2 p-4 bg-input border border-border hover:border-primary/50 hover:bg-surfaceHighlight rounded-xl transition-all group">
+                                <div className="p-2 bg-surfaceHighlight group-hover:bg-primary/20 rounded-full text-textMuted group-hover:text-primary transition-colors"><Download size={20} /></div>
+                                <span className="text-xs font-bold text-textMain">Scarica Backup</span>
                             </button>
-                            <button onClick={handleRestoreClick} disabled={backupLoading} className="flex flex-col items-center justify-center gap-2 p-4 bg-slate-900 border border-slate-700 hover:border-orange-500/50 hover:bg-slate-800 rounded-xl transition-all group disabled:opacity-50">
-                                <div className="p-2 bg-slate-800 group-hover:bg-orange-500/20 rounded-full text-slate-400 group-hover:text-orange-500 transition-colors">{backupLoading ? <Loader2 size={20} className="animate-spin" /> : <Upload size={20} />}</div>
-                                <span className="text-xs font-bold text-slate-300">Ripristina Dati</span>
+                            <button onClick={handleRestoreClick} disabled={backupLoading} className="flex flex-col items-center justify-center gap-2 p-4 bg-input border border-border hover:border-orange-500/50 hover:bg-surfaceHighlight rounded-xl transition-all group disabled:opacity-50">
+                                <div className="p-2 bg-surfaceHighlight group-hover:bg-orange-500/20 rounded-full text-textMuted group-hover:text-orange-500 transition-colors">{backupLoading ? <Loader2 size={20} className="animate-spin" /> : <Upload size={20} />}</div>
+                                <span className="text-xs font-bold text-textMain">Ripristina Dati</span>
                             </button>
                             <input type="file" accept=".json" ref={fileInputRef} className="hidden" onChange={handleFileChange} />
                         </div>
                         {restoreStatus && <div className={`text-xs p-2 rounded border flex items-center gap-2 ${restoreStatus.includes('Errore') ? 'bg-red-500/10 border-red-500/30 text-red-400' : 'bg-green-500/10 border-green-500/30 text-green-400'}`}><RefreshCw size={12} className={backupLoading ? "animate-spin" : ""} />{restoreStatus}</div>}
                     </div>
                 </div>
-                <div className="mt-6 flex gap-3 shrink-0 pt-4 border-t border-slate-800">
+                <div className="mt-6 flex gap-3 shrink-0 pt-4 border-t border-border">
                      {isFirebaseConfigured && <button onClick={resetConfig} className="px-4 py-2 border border-red-500/30 text-red-400 hover:bg-red-500/10 rounded-lg text-sm font-medium transition-colors">Reset</button>}
                      <button onClick={() => onSave(config)} disabled={!config.apiKey} className="flex-1 bg-primary hover:bg-blue-600 text-white font-bold py-2 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed">Salva e Riavvia</button>
                 </div>
@@ -658,7 +662,6 @@ const FirebaseConfigModal = ({
 
 // --- Login/Register Screen ---
 const LoginScreen = ({ onMockLogin }: { onMockLogin: () => void }) => {
-    // [Login Screen Content - Copied exactly as before]
     const [isRegister, setIsRegister] = useState(false);
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -689,15 +692,16 @@ const LoginScreen = ({ onMockLogin }: { onMockLogin: () => void }) => {
     };
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-background p-4 relative overflow-hidden">
+    <div className="flex flex-col items-center justify-center min-h-screen bg-background p-4 relative overflow-hidden transition-colors duration-300">
+      {/* Background decoration */}
       <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-blue-600/10 rounded-full blur-[100px]"></div>
       <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-purple-600/10 rounded-full blur-[100px]"></div>
 
-      <div className="w-full max-w-md bg-surface border border-slate-700/50 rounded-2xl shadow-2xl p-8 relative z-10 animate-fade-in">
+      <div className="w-full max-w-md bg-surface border border-border rounded-2xl shadow-2xl p-8 relative z-10 animate-fade-in">
         <div className="flex flex-col items-center mb-8">
           <FastTrackLogo className="w-16 h-16 mb-4" iconSize={32} />
-          <h1 className="text-2xl font-bold text-white mb-1">FastTrack</h1>
-          <p className="text-slate-400 text-sm text-center">
+          <h1 className="text-2xl font-bold text-textMain mb-1">FastTrack</h1>
+          <p className="text-textMuted text-sm text-center">
             {isFirebaseConfigured 
                 ? (isRegister ? 'Crea un account Cloud' : 'Accedi al tuo account Cloud')
                 : 'Modalità Locale: Accedi con qualsiasi credenziale'
@@ -707,31 +711,31 @@ const LoginScreen = ({ onMockLogin }: { onMockLogin: () => void }) => {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-1">
-            <label className="text-xs font-semibold text-slate-500 ml-1">USERNAME / EMAIL</label>
+            <label className="text-xs font-semibold text-textMuted ml-1">USERNAME / EMAIL</label>
             <div className="relative">
-              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
+              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-textMuted" size={18} />
               <input 
                 type={isFirebaseConfigured ? "email" : "text"}
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder={isFirebaseConfigured ? "nome@esempio.com" : "Inserisci un nome a caso..."}
-                className="w-full bg-slate-900/50 border border-slate-700 rounded-lg py-2.5 pl-10 pr-4 text-slate-200 placeholder-slate-600 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
+                className="w-full bg-input border border-border rounded-lg py-2.5 pl-10 pr-4 text-textMain placeholder-textMuted focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/50 transition-all"
               />
             </div>
           </div>
           
           <div className="space-y-1">
-            <label className="text-xs font-semibold text-slate-500 ml-1">PASSWORD</label>
+            <label className="text-xs font-semibold text-textMuted ml-1">PASSWORD</label>
             <div className="relative">
-              <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
+              <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-textMuted" size={18} />
               <input 
                 type="password" 
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
-                className="w-full bg-slate-900/50 border border-slate-700 rounded-lg py-2.5 pl-10 pr-4 text-slate-200 placeholder-slate-600 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
+                className="w-full bg-input border border-border rounded-lg py-2.5 pl-10 pr-4 text-textMain placeholder-textMuted focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/50 transition-all"
               />
             </div>
           </div>
@@ -757,7 +761,7 @@ const LoginScreen = ({ onMockLogin }: { onMockLogin: () => void }) => {
 
         {isFirebaseConfigured && (
             <div className="mt-6 text-center">
-            <button type="button" onClick={() => { setIsRegister(!isRegister); setError(null); }} className="text-sm text-slate-400 hover:text-white transition-colors">{isRegister ? 'Hai già un account? Accedi' : 'Non hai un account? Registrati'}</button>
+            <button type="button" onClick={() => { setIsRegister(!isRegister); setError(null); }} className="text-sm text-textMuted hover:text-textMain transition-colors">{isRegister ? 'Hai già un account? Accedi' : 'Non hai un account? Registrati'}</button>
             </div>
         )}
       </div>
@@ -768,6 +772,25 @@ const LoginScreen = ({ onMockLogin }: { onMockLogin: () => void }) => {
 // --- Main App ---
 
 export default function App() {
+  // Theme State
+  const [theme, setTheme] = useState<'dark' | 'light'>(() => {
+     if (typeof window !== 'undefined') {
+         const saved = localStorage.getItem('ft_theme');
+         return (saved === 'light') ? 'light' : 'dark';
+     }
+     return 'dark';
+  });
+
+  // Apply Theme
+  useEffect(() => {
+     const root = window.document.documentElement;
+     root.classList.remove('light', 'dark');
+     root.classList.add(theme);
+     localStorage.setItem('ft_theme', theme);
+  }, [theme]);
+  
+  const toggleTheme = () => setTheme(prev => prev === 'dark' ? 'light' : 'dark');
+
   // Mock User State (Local Mode)
   const [mockUser, setMockUser] = useState<User | null>(null);
   // Auth State (Firebase Mode)
@@ -1298,16 +1321,16 @@ export default function App() {
   const renderKanbanColumn = (status: TaskStatus, title: string, colorClass: string, borderColorClass: string) => {
     const colTasks = activeTasks.filter(t => t.status === status);
     return (
-      <div className="flex-1 min-w-[300px] flex flex-col h-full bg-slate-900/50 rounded-xl border border-slate-800/50 transition-colors" onDragOver={onDragOver} onDrop={(e) => onDropToStatus(e, status)}>
-        <div className={`p-4 border-b ${borderColorClass} flex items-center justify-between sticky top-0 bg-slate-900/90 backdrop-blur-md rounded-t-xl z-10`}>
+      <div className="flex-1 min-w-[300px] flex flex-col h-full bg-surfaceHighlight/50 rounded-xl border border-border/50 transition-colors" onDragOver={onDragOver} onDrop={(e) => onDropToStatus(e, status)}>
+        <div className={`p-4 border-b ${borderColorClass} flex items-center justify-between sticky top-0 bg-surface/90 backdrop-blur-md rounded-t-xl z-10`}>
           <div className="flex items-center gap-2"><h3 className={`font-bold ${colorClass} text-sm uppercase tracking-wide`}>{title}</h3></div>
-          <span className="text-xs font-mono text-slate-500 bg-slate-800 px-2 py-0.5 rounded-md">{colTasks.length}</span>
+          <span className="text-xs font-mono text-textMuted bg-input px-2 py-0.5 rounded-md border border-border">{colTasks.length}</span>
         </div>
         <div className="p-3 overflow-y-auto flex-1 space-y-3 custom-scrollbar">
           {colTasks.map(task => (
             <TaskItem key={task.id} task={task} viewMode="KANBAN" isSelected={selectedTaskIds.has(task.id)} onToggleSelection={() => toggleTaskSelection(task.id)} onCycleStatus={cycleStatus} onCyclePriority={cyclePriority} onUpdateTitle={(t, val) => updateTask(t.id, { title: val })} onUpdateDescription={(t, val) => updateTask(t.id, { description: val })} onEdit={setEditingTask} onDelete={deleteTask} onDragStart={onDragStart} />
           ))}
-          {colTasks.length === 0 && <div className="h-24 border-2 border-dashed border-slate-800 rounded-lg flex items-center justify-center text-slate-700 text-xs pointer-events-none">Trascina qui i task</div>}
+          {colTasks.length === 0 && <div className="h-24 border-2 border-dashed border-border rounded-lg flex items-center justify-center text-textMuted text-xs pointer-events-none">Trascina qui i task</div>}
         </div>
       </div>
     );
@@ -1319,7 +1342,7 @@ export default function App() {
     if (!hasSections || !groupByContainer) {
         // --- CLASSIC STATUS VIEW ---
         const groups = [
-            { status: TaskStatus.TODO, label: 'DA FARE', color: 'text-slate-200', border: 'border-slate-600' },
+            { status: TaskStatus.TODO, label: 'DA FARE', color: 'text-textMain', border: 'border-textMuted' },
             { status: TaskStatus.TEST, label: 'DA TESTARE', color: 'text-orange-400', border: 'border-orange-700' },
             { status: TaskStatus.DONE, label: 'COMPLETATO', color: 'text-green-400', border: 'border-green-700' }
         ];
@@ -1331,16 +1354,16 @@ export default function App() {
                 const isCollapsed = collapsedGroups[group.status];
                 return (
                     <div key={group.status} onDragOver={onDragOver} onDrop={(e) => onDropToStatus(e, group.status)} className="rounded-xl min-h-[50px]">
-                    <h3 onClick={() => toggleGroup(group.status)} className={`text-sm font-bold ${group.color} uppercase tracking-wider mb-3 px-1 flex items-center gap-2 border-b ${group.border} pb-2 cursor-pointer hover:bg-slate-800/50 rounded-t transition-colors select-none`}>
+                    <h3 onClick={() => toggleGroup(group.status)} className={`text-sm font-bold ${group.color} uppercase tracking-wider mb-3 px-1 flex items-center gap-2 border-b ${group.border} pb-2 cursor-pointer hover:bg-surfaceHighlight/50 rounded-t transition-colors select-none`}>
                         {isCollapsed ? <ChevronRight size={18} /> : <ChevronDown size={18} />}
-                        {group.label} <span className="bg-slate-800 text-slate-400 px-2 py-0.5 rounded-full text-[10px]">{groupTasks.length}</span>
+                        {group.label} <span className="bg-surfaceHighlight text-textMuted px-2 py-0.5 rounded-full text-[10px] border border-border/50">{groupTasks.length}</span>
                     </h3>
                     <SmoothCollapse isOpen={!isCollapsed}>
                         <div className="space-y-2">
                             {groupTasks.map(task => (
                             <TaskItem key={task.id} task={task} viewMode="LIST" isSelected={selectedTaskIds.has(task.id)} onToggleSelection={() => toggleTaskSelection(task.id)} onCycleStatus={cycleStatus} onCyclePriority={cyclePriority} onUpdateTitle={(t, val) => updateTask(t.id, { title: val })} onUpdateDescription={(t, val) => updateTask(t.id, { description: val })} onEdit={setEditingTask} onDelete={deleteTask} onDragStart={onDragStart} />
                             ))}
-                            {groupTasks.length === 0 && <div className="text-slate-600 text-xs italic p-4 text-center border border-dashed border-slate-800 rounded-lg">Nessun task in questa lista.</div>}
+                            {groupTasks.length === 0 && <div className="text-textMuted text-xs italic p-4 text-center border border-dashed border-border rounded-lg">Nessun task in questa lista.</div>}
                         </div>
                     </SmoothCollapse>
                     </div>
@@ -1348,8 +1371,8 @@ export default function App() {
                 })}
             </div>
             {!hasSections && (
-                <div className="pt-8 border-t border-slate-800 flex justify-center mt-8">
-                     <button onClick={addSection} className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-primary/20 hover:text-primary rounded-lg text-sm text-slate-400 transition-colors border border-dashed border-slate-700">
+                <div className="pt-8 border-t border-border flex justify-center mt-8">
+                     <button onClick={addSection} className="flex items-center gap-2 px-4 py-2 bg-surfaceHighlight hover:bg-primary/20 hover:text-primary rounded-lg text-sm text-textMuted transition-colors border border-dashed border-borderHighlight">
                          <LayoutTemplate size={16} /> Attiva vista a Sezioni (Container)
                      </button>
                 </div>
@@ -1365,9 +1388,6 @@ export default function App() {
         );
 
         // Tasks without section or with invalid section id
-        // Only show uncategorized if NO filter is selected, OR if we strictly want to filter by sections only, we might hide it.
-        // Let's hide Uncategorized if specific sections are selected, unless we want to treat "Uncategorized" as a section.
-        // For now: Show Uncategorized only if NO filter is active.
         const showUncategorized = selectedContainerIds.size === 0;
         const uncategorizedTasks = activeTasks.filter(t => !t.sectionId || !activeProject.sections?.find(s => s.id === t.sectionId));
         
@@ -1385,11 +1405,11 @@ export default function App() {
                                 key={section.id}
                                 onDragOver={onDragOver}
                                 onDrop={(e) => onDropToSection(e, section.id)} 
-                                className="rounded-xl min-h-[40px] border border-transparent hover:border-slate-800/50 transition-colors"
+                                className="rounded-xl min-h-[40px] border border-transparent hover:border-border/50 transition-colors"
                             >
-                                <div className="flex items-center justify-between border-b border-slate-700/50 pb-2 mb-3 select-none">
+                                <div className="flex items-center justify-between border-b border-border/50 pb-2 mb-3 select-none">
                                     <div className="flex items-center gap-2 cursor-pointer" onClick={() => toggleSection(section.id)}>
-                                        <div className="p-1 rounded hover:bg-slate-800 text-slate-500">
+                                        <div className="p-1 rounded hover:bg-surfaceHighlight text-textMuted">
                                             {isCollapsed ? <ChevronRight size={18} /> : <ChevronDown size={18} />}
                                         </div>
                                         {isEditing ? (
@@ -1400,20 +1420,20 @@ export default function App() {
                                                     value={newSectionName}
                                                     onChange={(e) => setNewSectionName(e.target.value)}
                                                     onBlur={() => renameSection(section.id, newSectionName)}
-                                                    className="bg-slate-800 text-white px-2 py-1 rounded text-sm font-bold outline-none border border-primary"
+                                                    className="bg-input text-textMain px-2 py-1 rounded text-sm font-bold outline-none border border-primary"
                                                 />
                                             </form>
                                         ) : (
-                                            <h3 className="text-base font-bold text-slate-200 flex items-center gap-2">
-                                                <FolderPlus size={16} className="text-slate-500" />
+                                            <h3 className="text-base font-bold text-textMain flex items-center gap-2">
+                                                <FolderPlus size={16} className="text-textMuted" />
                                                 {section.name}
                                             </h3>
                                         )}
-                                        <span className="bg-slate-800 text-slate-400 px-2 py-0.5 rounded-full text-[10px]">{sectionTasks.length}</span>
+                                        <span className="bg-surfaceHighlight text-textMuted px-2 py-0.5 rounded-full text-[10px] border border-border/50">{sectionTasks.length}</span>
                                     </div>
                                     <div className="flex items-center gap-1 opacity-50 hover:opacity-100 transition-opacity">
-                                        <button onClick={() => { setEditingSectionId(section.id); setNewSectionName(section.name); }} className="p-1.5 hover:bg-slate-700 rounded text-slate-400"><Pencil size={14}/></button>
-                                        <button onClick={() => deleteSection(section.id)} className="p-1.5 hover:bg-red-900/30 hover:text-red-400 rounded text-slate-400"><Trash2 size={14}/></button>
+                                        <button onClick={() => { setEditingSectionId(section.id); setNewSectionName(section.name); }} className="p-1.5 hover:bg-surfaceHighlight rounded text-textMuted"><Pencil size={14}/></button>
+                                        <button onClick={() => deleteSection(section.id)} className="p-1.5 hover:bg-red-900/30 hover:text-red-400 rounded text-textMuted"><Trash2 size={14}/></button>
                                     </div>
                                 </div>
 
@@ -1425,7 +1445,7 @@ export default function App() {
                                             if (tasksInStatus.length === 0) {
                                                 if (sectionTasks.length === 0 && status === TaskStatus.TODO) {
                                                     return (
-                                                         <div key={status} className="text-slate-700 text-xs italic p-4 text-center border border-dashed border-slate-800/50 rounded-lg">
+                                                         <div key={status} className="text-textMuted text-xs italic p-4 text-center border border-dashed border-border/50 rounded-lg">
                                                             Nessun task in questa sezione.
                                                         </div>
                                                     );
@@ -1435,7 +1455,7 @@ export default function App() {
                                             
                                             const isSubCollapsed = isSectionStatusCollapsed(section.id, status);
                                             const statusColor = {
-                                                [TaskStatus.TODO]: 'border-slate-600 text-slate-400',
+                                                [TaskStatus.TODO]: 'border-textMuted text-textMuted',
                                                 [TaskStatus.TEST]: 'border-orange-600 text-orange-400',
                                                 [TaskStatus.DONE]: 'border-green-600 text-green-400'
                                             }[status];
@@ -1452,7 +1472,7 @@ export default function App() {
                                                         onClick={() => toggleSectionStatus(section.id, status)}
                                                     >
                                                         {isSubCollapsed ? <ChevronRight size={12}/> : <ChevronDown size={12}/>}
-                                                        {status} <span className="text-slate-600 ml-1">({tasksInStatus.length})</span>
+                                                        {status} <span className="text-textMuted ml-1">({tasksInStatus.length})</span>
                                                     </div>
                                                     
                                                     <SmoothCollapse isOpen={!isSubCollapsed}>
@@ -1469,7 +1489,7 @@ export default function App() {
                                         {/* Quick Add in Section */}
                                         <button 
                                             onClick={() => handleAddToSection(section.id)}
-                                            className="w-full py-2 flex items-center justify-center gap-2 text-xs text-slate-500 hover:text-primary hover:bg-slate-800/50 rounded-lg border border-dashed border-slate-800 hover:border-primary/30 transition-all group mt-2"
+                                            className="w-full py-2 flex items-center justify-center gap-2 text-xs text-textMuted hover:text-primary hover:bg-surfaceHighlight/50 rounded-lg border border-dashed border-border hover:border-primary/30 transition-all group mt-2"
                                         >
                                             <Plus size={14} className="group-hover:scale-110 transition-transform" /> Aggiungi task a {section.name}
                                         </button>
@@ -1484,21 +1504,21 @@ export default function App() {
                     <div 
                         onDragOver={onDragOver}
                         onDrop={(e) => onDropToSection(e, undefined)} 
-                        className="rounded-xl min-h-[50px] mt-8 border border-transparent hover:border-slate-800/50 transition-colors"
+                        className="rounded-xl min-h-[50px] mt-8 border border-transparent hover:border-border/50 transition-colors"
                     >
                          <div 
-                             className="flex items-center justify-between border-b border-slate-700/50 pb-2 mb-3 select-none cursor-pointer hover:bg-slate-800/50 rounded-t-lg px-2 transition-colors"
+                             className="flex items-center justify-between border-b border-border/50 pb-2 mb-3 select-none cursor-pointer hover:bg-surfaceHighlight/50 rounded-t-lg px-2 transition-colors"
                              onClick={() => toggleSection('uncategorized')}
                          >
                              <div className="flex items-center gap-2">
-                                <div className="p-1 rounded text-slate-500">
+                                <div className="p-1 rounded text-textMuted">
                                     {collapsedSections.has('uncategorized') ? <ChevronRight size={18} /> : <ChevronDown size={18} />}
                                 </div>
-                                <h3 className="text-base font-bold text-slate-400 flex items-center gap-2">
+                                <h3 className="text-base font-bold text-textMuted flex items-center gap-2">
                                     <LayoutTemplate size={16} />
                                     Senza Sezione
                                 </h3>
-                                <span className="bg-slate-800 text-slate-400 px-2 py-0.5 rounded-full text-[10px]">{uncategorizedTasks.length}</span>
+                                <span className="bg-surfaceHighlight text-textMuted px-2 py-0.5 rounded-full text-[10px] border border-border/50">{uncategorizedTasks.length}</span>
                              </div>
                         </div>
 
@@ -1510,7 +1530,7 @@ export default function App() {
                                         
                                         const isSubCollapsed = isSectionStatusCollapsed('uncategorized', status);
                                         const statusColor = {
-                                            [TaskStatus.TODO]: 'border-slate-600 text-slate-400',
+                                            [TaskStatus.TODO]: 'border-textMuted text-textMuted',
                                             [TaskStatus.TEST]: 'border-orange-600 text-orange-400',
                                             [TaskStatus.DONE]: 'border-green-600 text-green-400'
                                         }[status];
@@ -1527,7 +1547,7 @@ export default function App() {
                                                     onClick={() => toggleSectionStatus('uncategorized', status)}
                                                 >
                                                     {isSubCollapsed ? <ChevronRight size={12}/> : <ChevronDown size={12}/>}
-                                                    {status} <span className="text-slate-600 ml-1">({tasksInStatus.length})</span>
+                                                    {status} <span className="text-textMuted ml-1">({tasksInStatus.length})</span>
                                                 </div>
                                                 <SmoothCollapse isOpen={!isSubCollapsed}>
                                                     <div className="space-y-2">
@@ -1544,7 +1564,7 @@ export default function App() {
                     </div>
                     )}
 
-                    <div className="pt-8 border-t border-slate-800 flex justify-center">
+                    <div className="pt-8 border-t border-border flex justify-center">
                         <button onClick={addSection} className="flex items-center gap-2 px-4 py-2 bg-primary hover:bg-blue-600 text-white rounded-lg text-sm font-bold transition-colors shadow-lg shadow-blue-900/20">
                             <FolderPlus size={18} /> Aggiungi Nuova Sezione
                         </button>
@@ -1556,22 +1576,22 @@ export default function App() {
   };
 
   return (
-    <div className="flex h-screen overflow-hidden bg-background text-slate-200 font-sans selection:bg-primary/30">
+    <div className="flex h-screen overflow-hidden bg-background text-textMain font-sans selection:bg-primary/30">
       
       {/* Sidebar */}
-      <aside className={`${isSidebarOpen ? 'w-64' : 'w-0'} bg-slate-900 border-r border-slate-800 transition-all duration-300 flex flex-col overflow-hidden whitespace-nowrap z-20 absolute md:relative h-full shadow-xl`}>
-        <div className="p-4 border-b border-slate-800 flex items-center justify-between bg-slate-900 shrink-0">
-           <div className="font-bold text-lg tracking-tight text-white flex items-center gap-2">
+      <aside className={`${isSidebarOpen ? 'w-64' : 'w-0'} bg-sidebar border-r border-border transition-all duration-300 flex flex-col overflow-hidden whitespace-nowrap z-20 absolute md:relative h-full shadow-xl`}>
+        <div className="p-4 border-b border-border flex items-center justify-between bg-sidebar shrink-0">
+           <div className="font-bold text-lg tracking-tight text-textMain flex items-center gap-2">
              <FastTrackLogo className="w-6 h-6 rounded-md" iconSize={16} />
              FastTrack
            </div>
-           <button onClick={() => setIsSidebarOpen(false)} className="text-slate-400 hover:text-white transition-colors">
+           <button onClick={() => setIsSidebarOpen(false)} className="text-textMuted hover:text-textMain transition-colors">
               <PanelLeftClose size={20}/>
            </button>
         </div>
         
         <div className="flex-1 overflow-y-auto p-3">
-          <div className="text-xs font-semibold text-slate-500 mb-2 px-2 flex justify-between items-center">
+          <div className="text-xs font-semibold text-textMuted mb-2 px-2 flex justify-between items-center">
             <span>PROGETTI</span>
             {projects.length === 0 && <span className="text-[10px] text-blue-400">Crea il primo!</span>}
           </div>
@@ -1584,7 +1604,7 @@ export default function App() {
                 onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }}
                 onDrop={(e) => handleProjectDrop(e, p.id)}
                 onClick={() => { setActiveProjectId(p.id); if(window.innerWidth < 768) setIsSidebarOpen(false); }}
-                className={`group flex items-center justify-between px-3 py-2 rounded-lg cursor-pointer text-sm transition-colors ${activeProjectId === p.id ? 'bg-primary/10 text-primary border border-primary/20' : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200 border border-transparent'}`}
+                className={`group flex items-center justify-between px-3 py-2 rounded-lg cursor-pointer text-sm transition-colors ${activeProjectId === p.id ? 'bg-primary/10 text-primary border border-primary/20' : 'text-textMuted hover:bg-surfaceHighlight hover:text-textMain border border-transparent'}`}
               >
                 <span className="truncate flex-1 select-none">{p.name}</span>
                 <button 
@@ -1599,41 +1619,48 @@ export default function App() {
           </div>
         </div>
 
-        <div className="p-3 border-t border-slate-800 bg-slate-900/50 shrink-0 space-y-3">
+        <div className="p-3 border-t border-border bg-surfaceHighlight/30 shrink-0 space-y-3">
            <form onSubmit={(e) => { e.preventDefault(); addProject(); }} className="flex gap-2">
              <input 
                type="text" 
                placeholder="Nuovo Progetto..." 
                value={newProjectInput}
                onChange={(e) => setNewProjectInput(e.target.value)}
-               className="w-full bg-slate-800 border border-slate-700 rounded-md px-2 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-primary"
+               className="w-full bg-input border border-borderHighlight rounded-md px-2 py-1.5 text-xs text-textMain placeholder-textMuted focus:outline-none focus:border-primary"
              />
-             <button type="submit" disabled={!newProjectInput.trim()} className="bg-slate-700 hover:bg-primary hover:text-white text-slate-300 p-1.5 rounded-md transition-colors disabled:opacity-50">
+             <button type="submit" disabled={!newProjectInput.trim()} className="bg-surfaceHighlight hover:bg-primary hover:text-white text-textMuted p-1.5 rounded-md transition-colors disabled:opacity-50">
                <Plus size={16} />
              </button>
            </form>
            
-           <div className="flex items-center justify-between pt-2 border-t border-slate-800/50">
+           <div className="flex items-center justify-between pt-2 border-t border-border/50">
              <div className="flex items-center gap-2 overflow-hidden">
-                <div className="w-6 h-6 rounded-full bg-slate-700 flex items-center justify-center text-[10px] font-bold text-white">
+                <div className="w-6 h-6 rounded-full bg-surfaceHighlight flex items-center justify-center text-[10px] font-bold text-textMain border border-border">
                   {user.email ? user.email[0].toUpperCase() : <UserIcon size={12} />}
                 </div>
                 <div className="flex flex-col min-w-0">
-                    <span className="text-xs text-slate-400 truncate max-w-[100px]" title={user.email || ''}>{user.email}</span>
+                    <span className="text-xs text-textMuted truncate max-w-[100px]" title={user.email || ''}>{user.email}</span>
                     {!isFirebaseConfigured && <span className="text-[9px] text-orange-400 font-bold uppercase">Modalità Locale</span>}
                 </div>
              </div>
-             <div className="flex items-center">
+             <div className="flex items-center gap-1">
+                 <button 
+                    onClick={toggleTheme}
+                    className="text-textMuted hover:text-textMain p-1.5 rounded hover:bg-surfaceHighlight transition-colors" 
+                    title={theme === 'dark' ? 'Passa a tema Chiaro' : 'Passa a tema Scuro'}
+                 >
+                    {theme === 'dark' ? <Sun size={14} /> : <Moon size={14} />}
+                 </button>
                  <button 
                     onClick={() => setIsSettingsOpen(true)}
-                    className="text-slate-500 hover:text-white p-1.5 rounded hover:bg-slate-800 transition-colors" 
+                    className="text-textMuted hover:text-textMain p-1.5 rounded hover:bg-surfaceHighlight transition-colors" 
                     title="Impostazioni"
                  >
                     <SettingsIcon size={14} />
                  </button>
                  <button 
                     onClick={handleLogout} 
-                    className="text-slate-500 hover:text-white p-1.5 rounded hover:bg-slate-800 transition-colors" 
+                    className="text-textMuted hover:text-textMain p-1.5 rounded hover:bg-surfaceHighlight transition-colors" 
                     title="Logout"
                  >
                     <LogOut size={14} />
@@ -1644,7 +1671,7 @@ export default function App() {
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 flex flex-col min-w-0 bg-background relative">
+      <main className="flex-1 flex flex-col min-w-0 bg-background relative transition-colors duration-300">
         
         {/* Error Banner */}
         {dbError && (
@@ -1655,10 +1682,10 @@ export default function App() {
         )}
 
         {/* Header */}
-        <header className="h-16 border-b border-slate-800 flex items-center justify-between px-4 bg-background/80 backdrop-blur-md sticky top-0 z-50 shrink-0 gap-4">
+        <header className="h-16 border-b border-border flex items-center justify-between px-4 bg-background/80 backdrop-blur-md sticky top-0 z-50 shrink-0 gap-4 transition-colors duration-300">
           <div className="flex items-center gap-3 flex-1 min-w-0">
             {!isSidebarOpen && (
-              <button onClick={() => setIsSidebarOpen(true)} className="p-2 text-slate-400 hover:bg-slate-800 rounded-lg">
+              <button onClick={() => setIsSidebarOpen(true)} className="p-2 text-textMuted hover:bg-surfaceHighlight rounded-lg">
                 <Menu size={20} />
               </button>
             )}
@@ -1668,18 +1695,18 @@ export default function App() {
                 <div className="relative z-50">
                     <button 
                         onClick={() => setIsProjectMenuOpen(!isProjectMenuOpen)}
-                        className="flex items-center gap-3 px-1 py-1 rounded-lg hover:bg-slate-800/50 transition-colors group"
+                        className="flex items-center gap-3 px-1 py-1 rounded-lg hover:bg-surfaceHighlight/50 transition-colors group"
                     >
                         <div className="w-8 h-8 bg-gradient-to-br from-primary to-purple-600 rounded-lg shadow-sm flex items-center justify-center text-white font-bold text-xs">
                              {activeProject?.name.substring(0, 2).toUpperCase()}
                         </div>
                         <div className="flex flex-col items-start">
-                            <span className="text-xs text-slate-500 font-medium leading-none mb-0.5">Progetto</span>
+                            <span className="text-xs text-textMuted font-medium leading-none mb-0.5">Progetto</span>
                             <div className="flex items-center gap-2">
-                                <span className="font-bold text-lg text-slate-200 leading-none truncate max-w-[200px]">
+                                <span className="font-bold text-lg text-textMain leading-none truncate max-w-[200px]">
                                     {activeProject?.name}
                                 </span>
-                                <ChevronDown size={14} className={`text-slate-500 transition-transform ${isProjectMenuOpen ? 'rotate-180' : ''}`} />
+                                <ChevronDown size={14} className={`text-textMuted transition-transform ${isProjectMenuOpen ? 'rotate-180' : ''}`} />
                             </div>
                         </div>
                     </button>
@@ -1688,8 +1715,8 @@ export default function App() {
                     {isProjectMenuOpen && (
                         <>
                             <div className="fixed inset-0 z-20" onClick={() => setIsProjectMenuOpen(false)}></div>
-                            <div className="absolute top-full left-0 mt-2 w-72 bg-surface border border-slate-700/50 rounded-xl shadow-2xl p-2 z-30 flex flex-col gap-1 animate-in fade-in zoom-in-95 duration-100 origin-top-left">
-                                 <div className="px-3 py-2 text-xs font-bold text-slate-500 uppercase tracking-wider border-b border-slate-700/50 mb-1">
+                            <div className="absolute top-full left-0 mt-2 w-72 bg-surface border border-border rounded-xl shadow-2xl p-2 z-30 flex flex-col gap-1 animate-in fade-in zoom-in-95 duration-100 origin-top-left">
+                                 <div className="px-3 py-2 text-xs font-bold text-textMuted uppercase tracking-wider border-b border-border/50 mb-1">
                                     I tuoi progetti
                                  </div>
                                  <div className="max-h-[300px] overflow-y-auto custom-scrollbar">
@@ -1697,17 +1724,17 @@ export default function App() {
                                          <button 
                                              key={p.id}
                                              onClick={() => { setActiveProjectId(p.id); setIsProjectMenuOpen(false); }}
-                                             className={`w-full text-left px-3 py-2.5 rounded-lg text-sm font-medium transition-all flex items-center justify-between group/item ${activeProjectId === p.id ? 'bg-primary/10 text-primary border border-primary/20' : 'text-slate-300 hover:bg-slate-800'}`}
+                                             className={`w-full text-left px-3 py-2.5 rounded-lg text-sm font-medium transition-all flex items-center justify-between group/item ${activeProjectId === p.id ? 'bg-primary/10 text-primary border border-primary/20' : 'text-textMain hover:bg-surfaceHighlight'}`}
                                          >
                                              <span className="truncate">{p.name}</span>
                                              {activeProjectId === p.id && <Check size={14} className="text-primary"/>}
                                          </button>
                                      ))}
                                  </div>
-                                 <div className="border-t border-slate-700/50 mt-1 pt-1">
+                                 <div className="border-t border-border/50 mt-1 pt-1">
                                      <button 
                                         onClick={() => { setIsProjectMenuOpen(false); setIsSidebarOpen(true); setTimeout(() => (document.querySelector('input[placeholder="Nuovo Progetto..."]') as HTMLElement)?.focus(), 100); }}
-                                        className="w-full flex items-center gap-2 px-3 py-2 text-xs text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors"
+                                        className="w-full flex items-center gap-2 px-3 py-2 text-xs text-textMuted hover:text-textMain hover:bg-surfaceHighlight rounded-lg transition-colors"
                                      >
                                         <Plus size={14} /> Crea nuovo progetto...
                                      </button>
@@ -1729,18 +1756,18 @@ export default function App() {
                        value={editingProjectName} 
                        onChange={(e) => setEditingProjectName(e.target.value)}
                        onBlur={() => renameProject(editingProjectName)}
-                       className="bg-slate-800 border border-primary rounded px-2 py-1 text-white font-bold text-lg w-full outline-none"
+                       className="bg-input border border-primary rounded px-2 py-1 text-textMain font-bold text-lg w-full outline-none"
                      />
                    </form>
                 ) : (
                   <div className="group flex items-center gap-3 overflow-hidden min-w-0">
-                    <h1 className="text-xl font-bold text-white truncate">
+                    <h1 className="text-xl font-bold text-textMain truncate">
                       {activeProject?.name || (projects.length > 0 ? "Seleziona un progetto" : "Crea un progetto")}
                     </h1>
                     {activeProject && (
                       <button 
                         onClick={() => setEditingProjectName(activeProject.name)}
-                        className="opacity-0 group-hover:opacity-100 p-1 text-slate-500 hover:text-primary transition-all shrink-0"
+                        className="opacity-0 group-hover:opacity-100 p-1 text-textMuted hover:text-primary transition-all shrink-0"
                         title="Rinomina Progetto"
                       >
                         <Pencil size={16} />
@@ -1758,7 +1785,7 @@ export default function App() {
                  <div className="hidden md:flex items-center gap-2 relative">
                     <button 
                         onClick={() => setIsContainerFilterOpen(!isContainerFilterOpen)}
-                        className={`flex items-center gap-2 px-2 py-1.5 rounded-lg border text-xs font-medium transition-all ${selectedContainerIds.size > 0 ? 'bg-primary/20 border-primary/40 text-primary' : 'bg-slate-900/50 border-slate-800/50 text-slate-400 hover:text-slate-200'}`}
+                        className={`flex items-center gap-2 px-2 py-1.5 rounded-lg border text-xs font-medium transition-all ${selectedContainerIds.size > 0 ? 'bg-primary/20 border-primary/40 text-primary' : 'bg-input border-border/50 text-textMuted hover:text-textMain'}`}
                     >
                         <Filter size={14} />
                         {selectedContainerIds.size > 0 ? `${selectedContainerIds.size} Filtri` : 'Tutti i container'}
@@ -1769,16 +1796,16 @@ export default function App() {
                     {isContainerFilterOpen && (
                         <>
                          <div className="fixed inset-0 z-20" onClick={() => setIsContainerFilterOpen(false)}></div>
-                         <div className="absolute top-full left-0 mt-2 w-64 bg-surface border border-slate-700/50 rounded-xl shadow-2xl p-2 z-30 flex flex-col gap-2 animate-in fade-in zoom-in-95 origin-top-left">
+                         <div className="absolute top-full left-0 mt-2 w-64 bg-surface border border-border rounded-xl shadow-2xl p-2 z-30 flex flex-col gap-2 animate-in fade-in zoom-in-95 origin-top-left">
                              <div className="relative">
-                                <Search className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-500" size={12} />
+                                <Search className="absolute left-2 top-1/2 -translate-y-1/2 text-textMuted" size={12} />
                                 <input 
                                     autoFocus
                                     type="text"
                                     value={containerDropdownSearch}
                                     onChange={(e) => setContainerDropdownSearch(e.target.value)}
                                     placeholder="Cerca container..."
-                                    className="w-full bg-slate-900 border border-slate-700 rounded-lg pl-7 pr-2 py-1.5 text-xs text-white focus:border-primary focus:outline-none"
+                                    className="w-full bg-input border border-borderHighlight rounded-lg pl-7 pr-2 py-1.5 text-xs text-textMain focus:border-primary focus:outline-none"
                                 />
                              </div>
                              <div className="max-h-48 overflow-y-auto custom-scrollbar space-y-1">
@@ -1786,9 +1813,9 @@ export default function App() {
                                     <button
                                         key={s.id}
                                         onClick={() => toggleContainerSelection(s.id)}
-                                        className="w-full text-left px-2 py-1.5 rounded hover:bg-slate-800 text-xs text-slate-300 flex items-center gap-2 group/item"
+                                        className="w-full text-left px-2 py-1.5 rounded hover:bg-surfaceHighlight text-xs text-textMain flex items-center gap-2 group/item"
                                     >
-                                        <div className={`transition-colors ${selectedContainerIds.has(s.id) ? 'text-primary' : 'text-slate-600 group-hover/item:text-slate-400'}`}>
+                                        <div className={`transition-colors ${selectedContainerIds.has(s.id) ? 'text-primary' : 'text-textMuted group-hover/item:text-textMain'}`}>
                                             {selectedContainerIds.has(s.id) ? <CheckSquare size={14}/> : <Square size={14}/>}
                                         </div>
                                         <span className="truncate flex-1">{s.name}</span>
@@ -1796,7 +1823,7 @@ export default function App() {
                                 ))}
                              </div>
                              {selectedContainerIds.size > 0 && (
-                                 <button onClick={() => setSelectedContainerIds(new Set())} className="text-xs text-center py-1 text-slate-500 hover:text-white border-t border-slate-700 pt-2">
+                                 <button onClick={() => setSelectedContainerIds(new Set())} className="text-xs text-center py-1 text-textMuted hover:text-textMain border-t border-border pt-2">
                                      Deseleziona tutto
                                  </button>
                              )}
@@ -1807,25 +1834,25 @@ export default function App() {
                )}
 
               <div className="relative w-64 hidden xl:block shrink-0 mx-2">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-textMuted" size={16} />
                   <input 
                     ref={searchInputRef}
                     type="text"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     placeholder="Cerca task..."
-                    className="w-full bg-slate-900 border border-slate-700 rounded-lg pl-9 pr-12 py-1.5 text-sm text-slate-200 focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all placeholder:text-slate-600"
+                    className="w-full bg-input border border-border rounded-lg pl-9 pr-12 py-1.5 text-sm text-textMain focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all placeholder:text-textMuted"
                   />
                    {/* Shortcut Hint */}
                   <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1 pointer-events-none">
                      {!searchQuery ? (
-                         <span className="text-[10px] text-slate-600 border border-slate-700 rounded px-1.5 py-0.5 font-mono flex items-center gap-0.5">
+                         <span className="text-[10px] text-textMuted border border-border rounded px-1.5 py-0.5 font-mono flex items-center gap-0.5">
                             <span className="text-[10px] font-bold">Alt</span> K
                          </span>
                      ) : (
                         <button 
                             onClick={() => setSearchQuery('')}
-                            className="text-slate-500 hover:text-white pointer-events-auto"
+                            className="text-textMuted hover:text-textMain pointer-events-auto"
                         >
                             <X size={14} />
                         </button>
@@ -1835,20 +1862,20 @@ export default function App() {
             </>
           )}
 
-          <div className="flex items-center gap-2 bg-slate-900 p-1 rounded-lg border border-slate-800 shrink-0 ml-2">
+          <div className="flex items-center gap-2 bg-input p-1 rounded-lg border border-border shrink-0 ml-2">
             {/* View Mode Toggles */}
             {viewMode === 'LIST' && hasSections && (
-                <div className="flex bg-slate-800 rounded mr-2 p-0.5">
+                <div className="flex bg-surfaceHighlight rounded mr-2 p-0.5">
                     <button 
                        onClick={() => setGroupByContainer(true)}
-                       className={`p-1 rounded text-[10px] font-bold transition-all ${groupByContainer ? 'bg-primary text-white' : 'text-slate-400 hover:text-slate-200'}`}
+                       className={`p-1 rounded text-[10px] font-bold transition-all ${groupByContainer ? 'bg-primary text-white' : 'text-textMuted hover:text-textMain'}`}
                        title="Raggruppa per Container"
                     >
                        <Layers size={14}/>
                     </button>
                     <button 
                        onClick={() => setGroupByContainer(false)}
-                       className={`p-1 rounded text-[10px] font-bold transition-all ${!groupByContainer ? 'bg-primary text-white' : 'text-slate-400 hover:text-slate-200'}`}
+                       className={`p-1 rounded text-[10px] font-bold transition-all ${!groupByContainer ? 'bg-primary text-white' : 'text-textMuted hover:text-textMain'}`}
                        title="Raggruppa per Stato"
                     >
                        <ListTodo size={14}/>
@@ -1858,14 +1885,14 @@ export default function App() {
             
             <button 
               onClick={() => setViewMode('LIST')}
-              className={`p-1.5 rounded-md transition-all ${viewMode === 'LIST' ? 'bg-slate-700 text-white shadow-sm' : 'text-slate-500 hover:text-slate-300'}`}
+              className={`p-1.5 rounded-md transition-all ${viewMode === 'LIST' ? 'bg-surfaceHighlight text-textMain shadow-sm border border-border/50' : 'text-textMuted hover:text-textMain'}`}
               title="Vista Lista"
             >
               <LayoutList size={18} />
             </button>
             <button 
               onClick={() => setViewMode('KANBAN')}
-              className={`p-1.5 rounded-md transition-all ${viewMode === 'KANBAN' ? 'bg-slate-700 text-white shadow-sm' : 'text-slate-500 hover:text-slate-300'}`}
+              className={`p-1.5 rounded-md transition-all ${viewMode === 'KANBAN' ? 'bg-surfaceHighlight text-textMain shadow-sm border border-border/50' : 'text-textMuted hover:text-textMain'}`}
               title="Vista Kanban"
             >
               <KanbanIcon size={18} />
@@ -1877,13 +1904,13 @@ export default function App() {
         {activeProject && (
              <div className="sm:hidden px-4 pt-4 pb-0">
                 <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-textMuted" size={16} />
                     <input 
                         type="text"
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                         placeholder="Cerca task..."
-                        className="w-full bg-slate-900 border border-slate-700 rounded-lg pl-9 pr-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20"
+                        className="w-full bg-input border border-border rounded-lg pl-9 pr-3 py-2 text-sm text-textMain focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20"
                     />
                 </div>
              </div>
@@ -1893,16 +1920,16 @@ export default function App() {
         <div className="flex-1 overflow-x-hidden overflow-y-auto p-4 md:p-6 custom-scrollbar pb-24">
            {/* Improved Input Area (Now Inside Scrollable & COMPACT) */}
            {activeProject && (
-             <div className="max-w-5xl mx-auto relative bg-surface border border-slate-700 rounded-xl shadow-lg p-2 mb-6">
+             <div className="max-w-5xl mx-auto relative bg-surface border border-border rounded-xl shadow-lg dark:shadow-blue-900/5 p-2 mb-6 transition-all duration-300">
                <form onSubmit={handleQuickAdd} className="flex flex-col gap-2">
                  
                  {/* Main Row: Input + Actions */}
                  <div className="flex items-center gap-2">
-                     <div className="flex-1 flex items-center bg-slate-900/50 border border-transparent focus-within:border-primary/50 rounded-lg px-3 transition-all relative">
+                     <div className="flex-1 flex items-center bg-input border border-transparent focus-within:border-primary/50 rounded-lg px-3 transition-all relative">
                          {targetSectionId && (
                              <span className="flex items-center gap-1 bg-primary/20 text-primary text-[10px] font-bold px-2 py-0.5 rounded-full mr-2 shrink-0 select-none">
                                  In: {activeProject.sections?.find(s => s.id === targetSectionId)?.name || '...'}
-                                 <button type="button" onClick={() => setTargetSectionId(null)} className="hover:text-white"><X size={10}/></button>
+                                 <button type="button" onClick={() => setTargetSectionId(null)} className="hover:text-textMain"><X size={10}/></button>
                              </span>
                          )}
                          <input
@@ -1916,7 +1943,7 @@ export default function App() {
                                }
                            }}
                            placeholder="Nuovo Task..."
-                           className="flex-1 bg-transparent border-none py-2 text-slate-100 placeholder-slate-400 focus:outline-none text-sm font-medium h-9"
+                           className="flex-1 bg-transparent border-none py-2 text-textMain placeholder-textMuted focus:outline-none text-sm font-medium h-9"
                          />
                      </div>
 
@@ -1925,7 +1952,7 @@ export default function App() {
                          <button 
                              type="button"
                              onClick={() => setShowTaskDescInput(!showTaskDescInput)}
-                             className={`p-2 rounded-lg transition-colors flex items-center justify-center ${showTaskDescInput ? 'bg-slate-700 text-white' : 'text-slate-500 hover:text-white hover:bg-slate-800'}`}
+                             className={`p-2 rounded-lg transition-colors flex items-center justify-center ${showTaskDescInput ? 'bg-surfaceHighlight text-textMain' : 'text-textMuted hover:text-textMain hover:bg-surfaceHighlight'}`}
                              title="Aggiungi Note"
                          >
                              <FileText size={16} />
@@ -1935,7 +1962,7 @@ export default function App() {
                              <button 
                                  type="button"
                                  onClick={handleClearInput}
-                                 className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors"
+                                 className="p-2 text-textMuted hover:text-textMain hover:bg-surfaceHighlight rounded-lg transition-colors"
                                  title="Svuota tutto"
                              >
                                  <Eraser size={16} />
@@ -1973,7 +2000,7 @@ export default function App() {
                              }}
                              placeholder="Note aggiuntive..."
                              rows={2}
-                             className="w-full bg-slate-900/30 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-300 placeholder-slate-600 focus:outline-none focus:border-slate-500 resize-none"
+                             className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm text-textMain placeholder-textMuted focus:outline-none focus:border-borderHighlight resize-none"
                          />
                      </div>
                  )}
@@ -1985,7 +2012,7 @@ export default function App() {
              renderListView()
            ) : (
              <div className="h-full flex gap-4 overflow-x-auto pb-4 snap-x">
-               {renderKanbanColumn(TaskStatus.TODO, 'Da Fare', 'text-slate-300', 'border-slate-600')}
+               {renderKanbanColumn(TaskStatus.TODO, 'Da Fare', 'text-textMain', 'border-borderHighlight')}
                {renderKanbanColumn(TaskStatus.TEST, 'Da Testare', 'text-orange-400', 'border-orange-600')}
                {renderKanbanColumn(TaskStatus.DONE, 'Completati', 'text-green-400', 'border-green-600')}
              </div>
@@ -1994,66 +2021,66 @@ export default function App() {
         
         {/* Bulk Action Bar */}
         {selectedTaskIds.size > 0 && (
-          <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-slate-900/90 backdrop-blur-md border border-slate-700 rounded-2xl shadow-2xl p-2 px-4 flex items-center gap-3 animate-in slide-in-from-bottom-6 z-40 max-w-[90vw] no-drag">
-              <div className="flex items-center gap-2 border-r border-slate-700 pr-3 mr-1">
+          <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-surfaceHighlight/90 backdrop-blur-md border border-border rounded-2xl shadow-2xl p-2 px-4 flex items-center gap-3 animate-in slide-in-from-bottom-6 z-40 max-w-[90vw] no-drag">
+              <div className="flex items-center gap-2 border-r border-border pr-3 mr-1">
                   <div className="bg-primary text-white text-xs font-bold rounded-md w-6 h-6 flex items-center justify-center">
                       {selectedTaskIds.size}
                   </div>
-                  <span className="text-xs font-medium text-slate-300 hidden sm:inline">Selezionati</span>
+                  <span className="text-xs font-medium text-textMain hidden sm:inline">Selezionati</span>
               </div>
 
               <button 
                   onClick={handleBulkCopy}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-300 hover:bg-slate-800 rounded-lg transition-colors"
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-textMain hover:bg-surface rounded-lg transition-colors"
                   title="Copia lista titoli (per Excel/Chat)"
               >
                   <Copy size={14} />
                   <span className="hidden sm:inline">Copia</span>
               </button>
 
-              <div className="h-6 w-px bg-slate-700/50"></div>
+              <div className="h-6 w-px bg-border"></div>
 
               <div className="relative group">
-                  <button className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-300 hover:bg-slate-800 rounded-lg transition-colors">
+                  <button className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-textMain hover:bg-surface rounded-lg transition-colors">
                       <ListTodo size={14} />
                       <span className="hidden sm:inline">Stato</span>
-                      <ChevronUp size={12} className="text-slate-500" />
+                      <ChevronUp size={12} className="text-textMuted" />
                   </button>
                   {/* WRAPPER con padding-bottom per fare da ponte tra bottone e menu */}
                   <div className="absolute bottom-full left-0 pb-2 w-32 hidden group-hover:block animate-in fade-in zoom-in-95 z-50">
-                      <div className="bg-surface border border-slate-700 rounded-lg shadow-xl overflow-hidden">
-                        <button onClick={() => handleBulkStatusChange(TaskStatus.TODO)} className="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 flex items-center gap-2"><Circle size={10}/> Da Fare</button>
-                        <button onClick={() => handleBulkStatusChange(TaskStatus.TEST)} className="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-orange-400 flex items-center gap-2"><Clock size={10}/> Test</button>
-                        <button onClick={() => handleBulkStatusChange(TaskStatus.DONE)} className="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-green-400 flex items-center gap-2"><CheckCircle2 size={10}/> Fatto</button>
+                      <div className="bg-surface border border-border rounded-lg shadow-xl overflow-hidden">
+                        <button onClick={() => handleBulkStatusChange(TaskStatus.TODO)} className="w-full text-left px-3 py-2 text-xs hover:bg-surfaceHighlight text-textMain flex items-center gap-2"><Circle size={10}/> Da Fare</button>
+                        <button onClick={() => handleBulkStatusChange(TaskStatus.TEST)} className="w-full text-left px-3 py-2 text-xs hover:bg-surfaceHighlight text-orange-400 flex items-center gap-2"><Clock size={10}/> Test</button>
+                        <button onClick={() => handleBulkStatusChange(TaskStatus.DONE)} className="w-full text-left px-3 py-2 text-xs hover:bg-surfaceHighlight text-green-400 flex items-center gap-2"><CheckCircle2 size={10}/> Fatto</button>
                       </div>
                   </div>
               </div>
 
-              <div className="h-6 w-px bg-slate-700/50"></div>
+              <div className="h-6 w-px bg-border"></div>
 
               {/* Move To Container Button */}
               {hasSections && (
                   <>
                     <div className="relative group">
-                        <button className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-300 hover:bg-slate-800 rounded-lg transition-colors">
+                        <button className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-textMain hover:bg-surface rounded-lg transition-colors">
                             <FolderPlus size={14} />
                             <span className="hidden sm:inline">Sposta</span>
-                            <ChevronUp size={12} className="text-slate-500" />
+                            <ChevronUp size={12} className="text-textMuted" />
                         </button>
                         <div className="absolute bottom-full left-0 pb-2 w-48 hidden group-hover:block animate-in fade-in zoom-in-95 z-50">
-                            <div className="bg-surface border border-slate-700 rounded-lg shadow-xl overflow-hidden max-h-64 overflow-y-auto custom-scrollbar">
-                              <button onClick={() => handleBulkMoveToSection(null)} className="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-400 border-b border-slate-700/50 flex items-center gap-2">
+                            <div className="bg-surface border border-border rounded-lg shadow-xl overflow-hidden max-h-64 overflow-y-auto custom-scrollbar">
+                              <button onClick={() => handleBulkMoveToSection(null)} className="w-full text-left px-3 py-2 text-xs hover:bg-surfaceHighlight text-textMuted border-b border-border flex items-center gap-2">
                                   <LayoutTemplate size={12}/> Nessun Container
                               </button>
                               {activeProject?.sections?.map(s => (
-                                  <button key={s.id} onClick={() => handleBulkMoveToSection(s.id)} className="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 text-slate-300 flex items-center gap-2">
+                                  <button key={s.id} onClick={() => handleBulkMoveToSection(s.id)} className="w-full text-left px-3 py-2 text-xs hover:bg-surfaceHighlight text-textMain flex items-center gap-2">
                                       <FolderPlus size={12}/> {s.name}
                                   </button>
                               ))}
                             </div>
                         </div>
                     </div>
-                    <div className="h-6 w-px bg-slate-700/50"></div>
+                    <div className="h-6 w-px bg-border"></div>
                   </>
               )}
 
@@ -2073,7 +2100,7 @@ export default function App() {
               
               <button 
                 onClick={() => setSelectedTaskIds(new Set())}
-                className="ml-2 text-slate-500 hover:text-white"
+                className="ml-2 text-textMuted hover:text-textMain"
               >
                   <X size={16} />
               </button>
@@ -2091,13 +2118,13 @@ export default function App() {
 
         {confirmModal.isOpen && (
             <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                <div className="bg-slate-900 border border-slate-700 rounded-xl shadow-2xl p-6 w-full max-w-sm animate-in fade-in zoom-in-95">
+                <div className="bg-surface border border-border rounded-xl shadow-2xl p-6 w-full max-w-sm animate-in fade-in zoom-in-95">
                     <div className="flex flex-col items-center text-center mb-6">
                         <div className="w-12 h-12 bg-red-500/20 text-red-500 rounded-full flex items-center justify-center mb-3">
                             <Trash2 size={24} />
                         </div>
-                        <h3 className="text-lg font-bold text-white mb-1">Sei sicuro?</h3>
-                        <p className="text-sm text-slate-400">
+                        <h3 className="text-lg font-bold text-textMain mb-1">Sei sicuro?</h3>
+                        <p className="text-sm text-textMuted">
                             Stai per eliminare <strong>{confirmModal.count}</strong> task. 
                             Questa azione non può essere annullata.
                         </p>
@@ -2105,7 +2132,7 @@ export default function App() {
                     <div className="flex gap-3">
                         <button 
                             onClick={() => setConfirmModal({...confirmModal, isOpen: false})}
-                            className="flex-1 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-sm font-medium transition-colors"
+                            className="flex-1 py-2.5 bg-surfaceHighlight hover:bg-border text-textMuted rounded-lg text-sm font-medium transition-colors"
                         >
                             Annulla
                         </button>
@@ -2122,33 +2149,33 @@ export default function App() {
 
         {isSectionModalOpen && (
             <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                <div className="bg-surface border border-slate-700 rounded-2xl w-full max-w-sm shadow-2xl animate-in fade-in zoom-in-95">
-                    <div className="p-4 border-b border-slate-700/50 flex justify-between items-center bg-slate-900/50 rounded-t-2xl">
-                        <h3 className="font-bold text-white flex items-center gap-2">
+                <div className="bg-surface border border-border rounded-2xl w-full max-w-sm shadow-2xl animate-in fade-in zoom-in-95">
+                    <div className="p-4 border-b border-border flex justify-between items-center bg-surfaceHighlight rounded-t-2xl">
+                        <h3 className="font-bold text-textMain flex items-center gap-2">
                             <FolderPlus size={18} className="text-primary" />
                             Nuova Sezione
                         </h3>
-                        <button onClick={() => setIsSectionModalOpen(false)} className="text-slate-400 hover:text-white transition-colors">
+                        <button onClick={() => setIsSectionModalOpen(false)} className="text-textMuted hover:text-textMain transition-colors">
                             <X size={18} />
                         </button>
                     </div>
                     <form onSubmit={handleCreateSection} className="p-4 flex flex-col gap-4">
                         <div>
-                            <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Nome Sezione</label>
+                            <label className="block text-xs font-bold text-textMuted uppercase mb-1.5">Nome Sezione</label>
                             <input 
                                 autoFocus
                                 type="text" 
                                 value={sectionModalName}
                                 onChange={(e) => setSectionModalName(e.target.value)}
                                 placeholder="Es. Backlog, Sprint 1, Marketing..."
-                                className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-sm text-white focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/50"
+                                className="w-full bg-input border border-border rounded-lg p-2.5 text-sm text-textMain focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/50"
                             />
                         </div>
                         <div className="flex justify-end gap-2 pt-2">
                             <button 
                                 type="button" 
                                 onClick={() => setIsSectionModalOpen(false)} 
-                                className="px-3 py-2 text-xs font-medium text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors"
+                                className="px-3 py-2 text-xs font-medium text-textMuted hover:text-textMain hover:bg-surfaceHighlight rounded-lg transition-colors"
                             >
                                 Annulla
                             </button>
@@ -2167,26 +2194,26 @@ export default function App() {
 
         {aiModalOpen && (
           <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-lg shadow-2xl animate-fade-in">
-              <div className="p-5 border-b border-slate-800 flex justify-between items-center">
-                 <h2 className="text-lg font-bold text-white flex items-center gap-2">
+            <div className="bg-surface border border-border rounded-2xl w-full max-w-lg shadow-2xl animate-fade-in">
+              <div className="p-5 border-b border-border flex justify-between items-center">
+                 <h2 className="text-lg font-bold text-textMain flex items-center gap-2">
                    <Sparkles size={20} className="text-purple-500" />
                    Assistente AI
                  </h2>
-                 <button onClick={() => setAiModalOpen(false)} className="text-slate-400 hover:text-white"><X size={20}/></button>
+                 <button onClick={() => setAiModalOpen(false)} className="text-textMuted hover:text-textMain"><X size={20}/></button>
               </div>
               <div className="p-5">
-                <p className="text-slate-400 text-sm mb-4">
+                <p className="text-textMuted text-sm mb-4">
                   Descrivi cosa vuoi realizzare (es. "Voglio una landing page con form di contatto e footer") e l'AI genererà i task necessari.
                 </p>
                 <textarea
                   value={aiPrompt}
                   onChange={(e) => setAiPrompt(e.target.value)}
                   placeholder="Descrivi il tuo obiettivo qui..."
-                  className="w-full h-32 bg-slate-950 border border-slate-700 rounded-xl p-3 text-slate-200 focus:outline-none focus:border-purple-500 resize-none text-sm"
+                  className="w-full h-32 bg-input border border-border rounded-xl p-3 text-textMain focus:outline-none focus:border-purple-500 resize-none text-sm"
                 ></textarea>
                 <div className="mt-4 flex justify-end gap-3">
-                  <button onClick={() => setAiModalOpen(false)} className="px-4 py-2 text-sm text-slate-400 hover:text-white transition-colors">Annulla</button>
+                  <button onClick={() => setAiModalOpen(false)} className="px-4 py-2 text-sm text-textMuted hover:text-textMain transition-colors">Annulla</button>
                   <button 
                     onClick={generateAiTasks}
                     disabled={isAiLoading || !aiPrompt.trim()}
@@ -2202,41 +2229,41 @@ export default function App() {
 
         {editingTask && (
           <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-             <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-lg shadow-2xl flex flex-col max-h-[90vh]">
-                <div className="p-4 border-b border-slate-800 flex justify-between items-center">
-                  <h3 className="font-bold text-white">Modifica Task Completo</h3>
-                  <button onClick={() => setEditingTask(null)} className="text-slate-400 hover:text-white"><X size={20}/></button>
+             <div className="bg-surface border border-border rounded-2xl w-full max-w-lg shadow-2xl flex flex-col max-h-[90vh]">
+                <div className="p-4 border-b border-border flex justify-between items-center">
+                  <h3 className="font-bold text-textMain">Modifica Task Completo</h3>
+                  <button onClick={() => setEditingTask(null)} className="text-textMuted hover:text-textMain"><X size={20}/></button>
                 </div>
                 <div className="p-4 overflow-y-auto flex-1 custom-scrollbar">
                    <form id="editTaskForm" onSubmit={saveEditedTask} className="space-y-4">
                       <div>
-                        <label className="block text-xs font-semibold text-slate-500 mb-1">TITOLO TASK</label>
+                        <label className="block text-xs font-semibold text-textMuted mb-1">TITOLO TASK</label>
                         <textarea 
                           value={editingTask.title}
                           onChange={(e) => setEditingTask({...editingTask, title: e.target.value})}
-                          className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-slate-200 focus:outline-none focus:border-primary min-h-[60px] resize-y"
+                          className="w-full bg-input border border-border rounded-lg p-3 text-textMain focus:outline-none focus:border-primary min-h-[60px] resize-y"
                           placeholder="Titolo..."
                         />
                       </div>
                       <div>
-                        <label className="block text-xs font-semibold text-slate-500 mb-1">NOTE AGGIUNTIVE</label>
+                        <label className="block text-xs font-semibold text-textMuted mb-1">NOTE AGGIUNTIVE</label>
                         <textarea 
                           value={editingTask.description || ''}
                           onChange={(e) => setEditingTask({...editingTask, description: e.target.value})}
-                          className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-slate-200 focus:outline-none focus:border-primary min-h-[120px] resize-y"
+                          className="w-full bg-input border border-border rounded-lg p-3 text-textMain focus:outline-none focus:border-primary min-h-[120px] resize-y"
                           placeholder="Dettagli tecnici..."
                         />
                       </div>
                       <div className="grid grid-cols-2 gap-4">
                           <div>
-                            <label className="block text-xs font-semibold text-slate-500 mb-1">STATO</label>
+                            <label className="block text-xs font-semibold text-textMuted mb-1">STATO</label>
                             <div className="flex flex-col gap-2">
                             {[TaskStatus.TODO, TaskStatus.TEST, TaskStatus.DONE].map(status => (
                                 <button
                                     type="button"
                                     key={status}
                                     onClick={() => setEditingTask({...editingTask, status})}
-                                    className={`px-3 py-2 rounded-lg text-xs font-medium border text-left transition-all flex items-center justify-between ${editingTask.status === status ? 'bg-primary/20 border-primary text-primary' : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700'}`}
+                                    className={`px-3 py-2 rounded-lg text-xs font-medium border text-left transition-all flex items-center justify-between ${editingTask.status === status ? 'bg-primary/20 border-primary text-primary' : 'bg-surfaceHighlight border-border text-textMuted hover:bg-border'}`}
                                 >
                                     {status}
                                     {editingTask.status === status && <CheckCircle2 size={14}/>}
@@ -2245,14 +2272,14 @@ export default function App() {
                             </div>
                           </div>
                           <div>
-                            <label className="block text-xs font-semibold text-slate-500 mb-1">PRIORITÀ</label>
+                            <label className="block text-xs font-semibold text-textMuted mb-1">PRIORITÀ</label>
                             <div className="flex flex-col gap-2">
                             {[TaskPriority.LOW, TaskPriority.MEDIUM, TaskPriority.HIGH].map(p => (
                                 <button
                                     type="button"
                                     key={p}
                                     onClick={() => setEditingTask({...editingTask, priority: p})}
-                                    className={`px-3 py-2 rounded-lg text-xs font-medium border text-left transition-all flex items-center justify-between ${editingTask.priority === p ? 'bg-slate-700 border-slate-500 text-white' : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700'}`}
+                                    className={`px-3 py-2 rounded-lg text-xs font-medium border text-left transition-all flex items-center justify-between ${editingTask.priority === p ? 'bg-surfaceHighlight border-textMuted text-textMain' : 'bg-surfaceHighlight border-border text-textMuted hover:bg-border'}`}
                                 >
                                     {p}
                                     {editingTask.priority === p && <CheckCircle2 size={14}/>}
@@ -2263,8 +2290,8 @@ export default function App() {
                       </div>
                    </form>
                 </div>
-                <div className="p-4 border-t border-slate-800 flex justify-end gap-3 bg-slate-900 rounded-b-2xl">
-                   <button type="button" onClick={() => setEditingTask(null)} className="px-4 py-2 text-sm text-slate-400 hover:text-white">Annulla</button>
+                <div className="p-4 border-t border-border flex justify-end gap-3 bg-surfaceHighlight rounded-b-2xl">
+                   <button type="button" onClick={() => setEditingTask(null)} className="px-4 py-2 text-sm text-textMuted hover:text-textMain">Annulla</button>
                    <button 
                      form="editTaskForm"
                      type="submit" 
