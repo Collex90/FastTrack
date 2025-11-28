@@ -1486,9 +1486,12 @@ export default function App() {
                         onDrop={(e) => onDropToSection(e, undefined)} 
                         className="rounded-xl min-h-[50px] mt-8 border border-transparent hover:border-slate-800/50 transition-colors"
                     >
-                        <div className="flex items-center justify-between border-b border-slate-700/50 pb-2 mb-3 select-none">
-                             <div className="flex items-center gap-2 cursor-pointer" onClick={() => toggleSection('uncategorized')}>
-                                <div className="p-1 rounded hover:bg-slate-800 text-slate-500">
+                         <div 
+                             className="flex items-center justify-between border-b border-slate-700/50 pb-2 mb-3 select-none cursor-pointer hover:bg-slate-800/50 rounded-t-lg px-2 transition-colors"
+                             onClick={() => toggleSection('uncategorized')}
+                         >
+                             <div className="flex items-center gap-2">
+                                <div className="p-1 rounded text-slate-500">
                                     {collapsedSections.has('uncategorized') ? <ChevronRight size={18} /> : <ChevronDown size={18} />}
                                 </div>
                                 <h3 className="text-base font-bold text-slate-400 flex items-center gap-2">
